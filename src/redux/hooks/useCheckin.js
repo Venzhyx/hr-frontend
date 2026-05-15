@@ -32,7 +32,6 @@ export const useCheckIn = () => {
     location,
     capturedAt,
     workType,
-    // ✅ Data forensik dari radius check — opsional
     gpsForensics = null,
     gpsSamples   = null,
   }) => {
@@ -54,41 +53,23 @@ export const useCheckIn = () => {
       if (location?.longitude != null) formData.append("longitude", String(location.longitude));
       if (location?.accuracy  != null) formData.append("accuracy",  String(location.accuracy));
 
-      // ✅ Device info untuk audit
-      formData.append("deviceInfo", JSON.stringify({
-        userAgent:  navigator.userAgent,
-        platform:   navigator.platform,
-        language:   navigator.language,
-        timezone:   Intl.DateTimeFormat().resolvedOptions().timeZone,
-        screenRes:  `${screen.width}x${screen.height}`,
-        colorDepth: screen.colorDepth,
-      }));
+      // Device info — hanya kirim userAgent saja, dipotong pendek
+      formData.append("deviceInfo", navigator.userAgent.slice(0, 100));
 
-      // ✅ GPS forensics untuk deteksi fake GPS di backend
+      // GPS forensics — hanya field penting
       if (gpsForensics) {
-        formData.append("isSuspiciousGPS",    String(gpsForensics.isSuspicious));
-        formData.append("suspiciousReasons",  JSON.stringify(gpsForensics.reasons ?? []));
-        formData.append("gpsAvgAccuracy",     String(gpsForensics.avgAccuracy ?? 0));
-      }
-
-      // ✅ Raw samples untuk audit trail di backend
-      if (gpsSamples) {
-        formData.append("gpsSamples", JSON.stringify(gpsSamples));
+        formData.append("isSuspiciousGPS", String(gpsForensics.isSuspicious ?? false));
       }
 
       console.group('[CheckIn] Submit');
-      console.log('employeeId:', employeeId);
-      console.log('GPS:', location ?? 'tidak ada');
+      console.log('employeeId:',     employeeId);
+      console.log('GPS:',            location ?? 'tidak ada');
       console.log('attendanceType:', workType);
       console.log('isSuspiciousGPS:', gpsForensics?.isSuspicious ?? false);
-      if (gpsForensics?.isSuspicious) {
-        console.warn('🚨 Suspicious GPS dikirim ke backend:', gpsForensics.reasons);
-      }
+      console.log('photo size:',     (photoBlob?.size / 1024).toFixed(1), 'KB');
       console.groupEnd();
 
-      const res = await API.post("/attendances/check-in", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await API.post("/attendances/check-in", formData);
 
       console.log("[CheckIn] Response:", res.status, res.data);
 

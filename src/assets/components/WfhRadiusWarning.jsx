@@ -6,12 +6,14 @@ import {
 } from 'react-icons/hi';
 import useWFHRadiusCheck, { formatDistance } from '../../redux/hooks/useWFHRadiusCheck';
 
-const WfhRadiusWarning = ({ onResult, allowOutside = true }) => {
+// ← TAMBAH prop `employee` — diteruskan ke hook agar homeLatitude/homeLongitude
+//   dibaca dari employee yang dipilih di dashboard, bukan dari Redux auth/selector
+const WfhRadiusWarning = ({ onResult, allowOutside = true, employee }) => {
   const {
     checkLocation, reset, status, distance, errorMsg,
     wfhRadius, homeLocation, gpsForensics,
     isChecking, isInside, isOutside, isError, noHomeCoords,
-  } = useWFHRadiusCheck();
+  } = useWFHRadiusCheck(employee); // ← pass employee ke hook
 
   const [checked, setChecked] = useState(false);
 
@@ -51,7 +53,7 @@ const WfhRadiusWarning = ({ onResult, allowOutside = true }) => {
         <div className="flex-1">
           <p className="font-medium">Koordinat rumah belum diatur</p>
           <p className="text-yellow-600 mt-0.5 text-xs">
-            Silakan update profile Anda dengan mengisi alamat rumah lengkap.
+            Silakan update profile karyawan dengan mengisi alamat rumah lengkap.
           </p>
         </div>
         <button onClick={handleCheck} className="text-yellow-500 hover:text-yellow-700 flex-shrink-0">
@@ -80,7 +82,6 @@ const WfhRadiusWarning = ({ onResult, allowOutside = true }) => {
   }
 
   // ── Fake GPS terdeteksi ───────────────────────────────────────────────────
-  // Tampilkan pesan berbeda dari "di luar radius" biasa
   if (isOutside && gpsForensics?.isSuspicious) {
     return (
       <div className="flex flex-col gap-2">
@@ -92,7 +93,6 @@ const WfhRadiusWarning = ({ onResult, allowOutside = true }) => {
               Sistem mendeteksi anomali pada data GPS. Pastikan tidak ada aplikasi
               pemalsuan lokasi yang aktif di perangkat Anda.
             </p>
-            {/* Tampilkan indikator teknis tapi dalam bahasa sederhana */}
             <div className="mt-2 flex flex-wrap gap-1">
               {gpsForensics.reasons.includes('coordinates_perfectly_static') && (
                 <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
@@ -111,7 +111,11 @@ const WfhRadiusWarning = ({ onResult, allowOutside = true }) => {
               )}
             </div>
           </div>
-          <button onClick={handleCheck} className="text-red-400 hover:text-red-600 flex-shrink-0 mt-0.5" title="Cek ulang">
+          <button
+            onClick={handleCheck}
+            className="text-red-400 hover:text-red-600 flex-shrink-0 mt-0.5"
+            title="Cek ulang"
+          >
             <HiOutlineRefresh className="w-4 h-4" />
           </button>
         </div>
@@ -173,7 +177,10 @@ const WfhRadiusWarning = ({ onResult, allowOutside = true }) => {
               </div>
             </div>
           </div>
-          <button onClick={handleCheck} className="text-amber-500 hover:text-amber-700 flex-shrink-0 mt-0.5">
+          <button
+            onClick={handleCheck}
+            className="text-amber-500 hover:text-amber-700 flex-shrink-0 mt-0.5"
+          >
             <HiOutlineRefresh className="w-4 h-4" />
           </button>
         </div>

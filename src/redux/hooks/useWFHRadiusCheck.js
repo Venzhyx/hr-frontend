@@ -113,17 +113,21 @@ const collectGPSSamples = (count = 3, delayMs = 700) => {
   });
 };
 
-const useWFHRadiusCheck = () => {
-  const [status,      setStatus]      = useState('idle');
-  const [distance,    setDistance]    = useState(null);
-  const [userPos,     setUserPos]     = useState(null);
-  const [errorMsg,    setErrorMsg]    = useState(null);
+// ── Hook utama — terima `employee` sebagai parameter (tidak lagi dari Redux) ──
+const useWFHRadiusCheck = (employee) => {
+  const [status,       setStatus]       = useState('idle');
+  const [distance,     setDistance]     = useState(null);
+  const [userPos,      setUserPos]      = useState(null);
+  const [errorMsg,     setErrorMsg]     = useState(null);
   const [gpsForensics, setGpsForensics] = useState(null);
 
-  const wfhRadius         = useSelector(s => s.attendanceSettings?.data?.wfhRadius ?? 100);
-  const authEmployee      = useSelector(s => s.auth?.employee);
-  const employeesEmployee = useSelector(s => s.employees?.selectedEmployee);
-  const employee          = authEmployee || employeesEmployee;
+  // wfhRadius tetap diambil dari Redux (settings global, bukan per-employee)
+  const wfhRadius = useSelector(s => s.attendanceSettings?.data?.wfhRadius ?? 100);
+
+  // HAPUS 3 baris Redux selector berikut — sekarang pakai prop `employee`:
+  // const authEmployee      = useSelector(s => s.auth?.employee);
+  // const employeesEmployee = useSelector(s => s.employees?.selectedEmployee);
+  // const employee          = authEmployee || employeesEmployee;
 
   const homeLocation = (() => {
     if (employee?.homeLatitude && employee?.homeLongitude) {

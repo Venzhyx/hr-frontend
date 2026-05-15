@@ -12,15 +12,15 @@ import { useEmployee } from '../../../redux/hooks/useEmployee';
 
 const PER_PAGE = 10;
 
-// ✅ Base URL backend
-const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080')
+const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api')
   .replace(/\/api(\/v\d+)?\/?$/, '');
 
 const buildPhotoUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('http')) return path;
   if (path.startsWith('//')) return `https:${path}`;
-  return `${BASE_URL}${path}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${BASE_URL}${cleanPath}`;
 };
 
 // ✅ Fallback image Base64 (no external request)

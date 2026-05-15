@@ -444,7 +444,7 @@ const CheckInModal = ({ isOpen, onClose, employee, onSuccess }) => {
     stopStream();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: mode, width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
       streamRef.current = stream;
@@ -501,29 +501,43 @@ const CheckInModal = ({ isOpen, onClose, employee, onSuccess }) => {
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    canvas.width  = video.videoWidth  || 640;
-    canvas.height = video.videoHeight || 480;
+    const MAX_WIDTH  = 640;
+    const MAX_HEIGHT = 480;
+
+    let width  = video.videoWidth  || 640;
+    let height = video.videoHeight || 480;
+
+    if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+      const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+      width  = Math.round(width  * ratio);
+      height = Math.round(height * ratio);
+    }
+
+    canvas.width  = width;
+    canvas.height = height;
+
     const ctx = canvas.getContext("2d");
     if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, 0, 0, width, height);
 
     const ts = new Date();
     setCapturedAt(ts);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.font = "bold 13px monospace";
+    ctx.font = "bold 11px monospace";
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(8, canvas.height - 34, 330, 26);
+    ctx.fillRect(8, canvas.height - 30, 310, 24);
     ctx.fillStyle = "white";
-    ctx.fillText(fmtDateTime(ts), 12, canvas.height - 16);
+    ctx.fillText(fmtDateTime(ts), 10, canvas.height - 13);
 
     canvas.toBlob((blob) => {
       if (!blob) return;
+      console.log("[CheckIn] Photo size:", (blob.size / 1024).toFixed(1), "KB");
       setPhotoBlob(blob);
       setPhotoUrl(URL.createObjectURL(blob));
       stopStream();
       setStep(STEP.WORK_TYPE);
-    }, "image/jpeg", 0.92);
+    }, "image/jpeg", 0.75);
   }, [facingMode, stopStream]);
 
   const retake = useCallback(() => {
@@ -560,14 +574,11 @@ const CheckInModal = ({ isOpen, onClose, employee, onSuccess }) => {
   const handleSubmit = useCallback(async () => {
     if (!photoBlob || !employee?.id || !workType) return;
 
-    // ── Guard: radius ─────────────────────────────────────────────────────
     if (workType === "WFO" && isOutsideWFORadius) { setStep(STEP.ERROR); return; }
     if (workType === "WFH" && isOutsideWFHRadius) { setStep(STEP.ERROR); return; }
 
-    // ── Guard: GPS mencurigakan → BLOKIR ─────────────────────────────────
     if (isGpsSuspicious) { setStep(STEP.ERROR); return; }
 
-    // Forensics masih berjalan → tunggu
     if (gpsForensics.status === "collecting") return;
 
     setStep(STEP.SUBMITTING);
@@ -838,6 +849,7 @@ const CheckInModal = ({ isOpen, onClose, employee, onSuccess }) => {
               )}
               {workType === "WFH" && (
                 <WfhRadiusWarning
+                  employee={employee}
                   allowOutside={true}
                   onResult={(result) => {
                     const outside = result.skipped ? false : !result.withinRadius;
@@ -1006,7 +1018,6 @@ const CheckInModal = ({ isOpen, onClose, employee, onSuccess }) => {
               </p>
             </div>
 
-            {/* Detail flag GPS jika suspicious */}
             {isGpsSuspicious && gpsForensics.forensics?.flags?.length > 0 && (
               <div className="w-full px-3.5 py-3 rounded-xl bg-red-50 border border-red-200">
                 <p className="text-xs font-semibold text-red-600 mb-2">Indikator terdeteksi:</p>
