@@ -12,9 +12,11 @@ import {
   HiOutlineInformationCircle,
   HiOutlineBadgeCheck,
   HiOutlineExclamationCircle,
+  HiOutlineTrash,
 } from 'react-icons/hi';
 import usePayroll from '../../../redux/hooks/usePayroll';
 import { useEmployee } from '../../../redux/hooks/useEmployee';
+import { payrollApi } from '../../../ApiService/payrollApi';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MONTHS = [
@@ -29,12 +31,20 @@ const formatRp = (val) =>
 const buildGeneratedSet = (runHistory = []) => {
   const set = new Set();
   runHistory.forEach((run) => {
-    // Backend mungkin simpan sebagai { month, year } atau { period: "2025-06" } atau { periodMonth, periodYear }
     const m = run.month ?? run.periodMonth ?? run.period?.split('-')?.[1];
     const y = run.year  ?? run.periodYear  ?? run.period?.split('-')?.[0];
     if (m && y) set.add(`${String(m).padStart(2,'0')}-${y}`);
   });
   return set;
+};
+
+// ─── Helper: cari period dari runHistory berdasarkan month+year ───────────────
+const findPeriodByMonthYear = (runHistory = [], month, year) => {
+  return runHistory.find(run => {
+    const m = run.month ?? run.periodMonth ?? run.period?.split('-')?.[1];
+    const y = run.year  ?? run.periodYear  ?? run.period?.split('-')?.[0];
+    return Number(m) === Number(month) && Number(y) === Number(year);
+  });
 };
 
 const periodKey = (month, year) => `${String(month).padStart(2,'0')}-${year}`;
@@ -88,7 +98,6 @@ const Avatar = ({ name, photo }) => {
 };
 
 // ─── MonthYearPicker ───────────────────────────────────────────────────────────
-// Menampilkan grid bulan dengan indikator periode yang sudah di-generate
 const MonthYearPicker = ({ month, year, setMonth, setYear, generatedSet }) => {
   const years = [2024, 2025, 2026, 2027];
 
@@ -111,7 +120,6 @@ const MonthYearPicker = ({ month, year, setMonth, setYear, generatedSet }) => {
                   }`}
               >
                 {y}
-                {/* Dot indicator: tahun ini punya bulan yang sudah di-generate */}
                 {hasGenerated && (
                   <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2
                     ${year === y ? 'border-blue-600 bg-green-400' : 'border-white bg-green-400'}`} />
@@ -146,8 +154,6 @@ const MonthYearPicker = ({ month, year, setMonth, setYear, generatedSet }) => {
                   }`}
               >
                 <span>{m.slice(0, 3)}</span>
-
-                {/* Badge status */}
                 {generated && !isActive && (
                   <span className="mt-1 inline-flex items-center gap-0.5 bg-green-100 text-green-700 text-[9px] font-semibold
                                    px-1.5 py-0.5 rounded-full leading-none">
@@ -190,9 +196,16 @@ const MonthYearPicker = ({ month, year, setMonth, setYear, generatedSet }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP 1 — Pilih Periode
 // ─────────────────────────────────────────────────────────────────────────────
-const Step1 = ({ month, setMonth, year, setYear, onNext, onCancel, generatedSet }) => {
+const Step1 = ({ month, setMonth, year, setYear, onNext, onCancel, generatedSet, runHistory }) => {
   const isGenerated = generatedSet.has(periodKey(month, year));
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
+
+  // Cek apakah period yang sudah di-generate statusnya DRAFT (boleh di-regenerate)
+  // atau FINALIZED/PAID (tidak boleh)
+  const existingPeriod  = findPeriodByMonthYear(runHistory, month, year);
+  const existingStatus  = existingPeriod?.status ?? null;
+  const canRegenerate   = isGenerated && existingStatus === 'DRAFT';
+  const cannotRegenerate = isGenerated && existingStatus && existingStatus !== 'DRAFT';
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6">
@@ -207,14 +220,29 @@ const Step1 = ({ month, setMonth, year, setYear, onNext, onCancel, generatedSet 
         generatedSet={generatedSet}
       />
 
-      {/* Warning: periode sudah di-generate */}
-      {isGenerated && (
+      {/* Warning: periode sudah di-generate tapi bisa di-regenerate (DRAFT) */}
+      {canRegenerate && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 flex items-start gap-2.5">
           <HiOutlineExclamationCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
           <div className="space-y-0.5">
-            <p className="font-semibold">Periode {periodLabel} sudah pernah di-generate</p>
+            <p className="font-semibold">Periode {periodLabel} sudah pernah di-generate (DRAFT)</p>
             <p className="text-xs text-amber-700">
-              Melanjutkan akan membuat payroll baru untuk periode ini. Pastikan payroll lama sudah di-review atau dihapus sebelumnya.
+              Melanjutkan akan <strong>menghapus payroll lama</strong> dan membuat ulang dari awal.
+              Semua perubahan manual pada payslip sebelumnya akan hilang.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Error: tidak bisa regenerate karena sudah FINALIZED/PAID */}
+      {cannotRegenerate && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800 flex items-start gap-2.5">
+          <HiOutlineExclamationCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-500" />
+          <div className="space-y-0.5">
+            <p className="font-semibold">Periode {periodLabel} tidak bisa di-generate ulang</p>
+            <p className="text-xs text-red-700">
+              Status payroll saat ini adalah <strong>{existingStatus}</strong>.
+              Hanya payroll berstatus DRAFT yang bisa dihapus dan di-generate ulang.
             </p>
           </div>
         </div>
@@ -232,10 +260,22 @@ const Step1 = ({ month, setMonth, year, setYear, onNext, onCancel, generatedSet 
           className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 font-medium">
           Batal
         </button>
-        <button onClick={onNext}
+        <button
+          onClick={onNext}
+          disabled={cannotRegenerate}
           className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold bg-blue-600
-                     hover:bg-blue-700 text-white rounded-xl transition-colors shadow-sm">
-          Lanjutkan <HiOutlineChevronRight className="w-4 h-4" />
+                     hover:bg-blue-700 text-white rounded-xl transition-colors shadow-sm
+                     disabled:opacity-40 disabled:cursor-not-allowed">
+          {canRegenerate ? (
+            <>
+              <HiOutlineRefresh className="w-4 h-4" />
+              Generate Ulang
+            </>
+          ) : (
+            <>
+              Lanjutkan <HiOutlineChevronRight className="w-4 h-4" />
+            </>
+          )}
         </button>
       </div>
     </div>
@@ -245,7 +285,7 @@ const Step1 = ({ month, setMonth, year, setYear, onNext, onCancel, generatedSet 
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP 2 — Preview Payroll
 // ─────────────────────────────────────────────────────────────────────────────
-const Step2 = ({ month, year, previewData, empMap, loading, error, onRunPreview, onNext, onBack }) => {
+const Step2 = ({ month, year, previewData, empMap, loading, error, onRunPreview, onNext, onBack, isRegenerate }) => {
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
   const payslips    = previewData?.payslips ?? [];
 
@@ -265,10 +305,23 @@ const Step2 = ({ month, year, previewData, empMap, loading, error, onRunPreview,
         </button>
       </div>
 
+      {/* Banner generate ulang */}
+      {isRegenerate && !previewData && !loading && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-sm text-amber-800 flex items-start gap-2.5">
+          <HiOutlineExclamationCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
+          <p className="text-xs">
+            Payroll lama akan <strong>dihapus permanen</strong> saat kamu klik Generate.
+            Proses ini tidak bisa dibatalkan.
+          </p>
+        </div>
+      )}
+
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 gap-3">
           <HiOutlineClock className="w-7 h-7 text-blue-400 animate-spin" />
-          <p className="text-sm text-gray-400">Memproses data payroll...</p>
+          <p className="text-sm text-gray-400">
+            {isRegenerate ? 'Menghapus payroll lama dan memproses ulang...' : 'Memproses data payroll...'}
+          </p>
         </div>
       )}
 
@@ -293,7 +346,7 @@ const Step2 = ({ month, year, previewData, empMap, loading, error, onRunPreview,
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold bg-blue-600
                        hover:bg-blue-700 text-white rounded-xl transition-colors shadow-sm">
             <HiOutlineRefresh className="w-4 h-4" />
-            Generate Preview
+            {isRegenerate ? 'Hapus & Generate Ulang' : 'Generate Preview'}
           </button>
         </div>
       )}
@@ -594,7 +647,6 @@ const RunPayrollPage = () => {
   const [previewData,  setPreviewData]  = useState(null);
   const [previewError, setPreviewError] = useState(null);
 
-  // Fetch employees & payroll run history on mount
   useEffect(() => {
     fetchEmployees();
     run.fetchAll?.();
@@ -606,16 +658,38 @@ const RunPayrollPage = () => {
     return map;
   }, [employees]);
 
-  // Build set of already-generated periods from run history
   const generatedSet = useMemo(() => buildGeneratedSet(run.history ?? []), [run.history]);
+
+  // Apakah periode yang dipilih saat ini adalah regenerate (sudah ada sebelumnya, statusnya DRAFT)
+  const isRegenerate = useMemo(() => {
+    if (!generatedSet.has(periodKey(month, year))) return false;
+    const existing = findPeriodByMonthYear(run.history ?? [], month, year);
+    return existing?.status === 'DRAFT';
+  }, [generatedSet, month, year, run.history]);
 
   const handleRunPreview = async () => {
     setPreviewError(null);
     clearError?.();
+
+    // Jika generate ulang: hapus period lama dulu
+    if (isRegenerate) {
+      try {
+        await payrollApi.deletePayrollRun(month, year);
+        // Refresh run history di Redux agar generatedSet terupdate
+        await run.fetchAll?.();
+      } catch (e) {
+        const msg = e.response?.data?.message ?? e.response?.data?.error ?? 'Gagal menghapus payroll lama';
+        setPreviewError(msg);
+        return;
+      }
+    }
+
     const res = await run.execute(month, year);
     if (res?.meta?.requestStatus === 'fulfilled') {
       const result = res.payload?.data ?? res.payload;
       setPreviewData(result);
+      // Refresh run history agar period baru masuk ke Redux store
+      run.fetchAll?.();
     } else {
       setPreviewError(res?.payload ?? actionError ?? res?.error?.message ?? 'Gagal memproses payroll');
     }
@@ -674,6 +748,7 @@ const RunPayrollPage = () => {
           onNext={() => { clearError?.(); setStep(2); }}
           onCancel={() => navigate('/payroll')}
           generatedSet={generatedSet}
+          runHistory={run.history ?? []}
         />
       )}
 
@@ -687,6 +762,7 @@ const RunPayrollPage = () => {
           onRunPreview={handleRunPreview}
           onNext={() => setStep(3)}
           onBack={() => setStep(1)}
+          isRegenerate={isRegenerate}
         />
       )}
 

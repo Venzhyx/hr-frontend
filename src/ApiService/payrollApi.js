@@ -65,6 +65,16 @@ export const payrollApi = {
     return response.data;
   },
 
+  /**
+   * Hapus payroll period beserta semua payslip-nya.
+   * Hanya boleh jika status period masih DRAFT.
+   * Dipakai untuk generate ulang payroll di periode yang sama.
+   */
+  deletePayrollRun: async (month, year) => {
+    const response = await API.delete(`${BASE}/runs`, { params: { month, year } });
+    return response.data;
+  },
+
   // ─── Payslip ─────────────────────────────────────────────────────────────
 
   getPayslipsByEmployee: async (employeeId) => {
@@ -84,19 +94,16 @@ export const payrollApi = {
     return response;
   },
 
-  // PATCH /payroll/payslips/{payslipId}/approve
   approvePayslip: async (payslipId) => {
     const response = await API.patch(`${BASE}/payslips/${payslipId}/approve`);
     return response.data;
   },
 
-  // PATCH /payroll/payslips/{payslipId}/paid  ← NEW
   markAsPaid: async (payslipId) => {
     const response = await API.patch(`${BASE}/payslips/${payslipId}/paid`);
     return response.data;
   },
 
-  // DELETE /payroll/payslips/{payslipId}
   deletePayslip: async (payslipId) => {
     const response = await API.delete(`${BASE}/payslips/${payslipId}`);
     return response.data;
@@ -118,5 +125,26 @@ export const payrollApi = {
       responseType: "blob",
     });
     return response;
+  },
+
+  // ─── Payroll Settings ─────────────────────────────────────────────────────
+
+  /**
+   * GET /api/payroll/settings
+   * Ambil nilai absent & late deduction per day.
+   */
+  getPayrollSettings: async () => {
+    const response = await API.get(`${BASE}/settings`);
+    return response.data;
+  },
+
+  /**
+   * PUT /api/payroll/settings
+   * Update nilai absent & late deduction per day.
+   * @param {{ absentDeductionPerDay: number, lateDeductionPerDay: number }} data
+   */
+  updatePayrollSettings: async (data) => {
+    const response = await API.put(`${BASE}/settings`, data);
+    return response.data;
   },
 };

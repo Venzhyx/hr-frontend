@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { HiOutlineArchive } from 'react-icons/hi';
+import { HiOutlineArchive, HiOutlineCog } from 'react-icons/hi';
 import usePayroll from '../../../redux/hooks/usePayroll';
 import StatusBadge from '../../components/StatusBadge';
 import PayrollModal from '../../components/PayrollModal';
+import PayrollSettingModal from './PayrollSettingModal';
 import EmptyState from '../../components/EmptyState';
 
 const EMPTY_FORM = {
@@ -12,12 +13,13 @@ const EMPTY_FORM = {
 
 const SalaryComponentPage = () => {
   const { component, actionLoading, actionError, clearError } = usePayroll();
-  const [showModal,    setShowModal]    = useState(false);
-  const [editData,     setEditData]     = useState(null);
-  const [form,         setForm]         = useState(EMPTY_FORM);
-  const [filterType,   setFilterType]   = useState('ALL');
-  const [showInactive, setShowInactive] = useState(false);
-  const [confirmId,    setConfirmId]    = useState(null);
+  const [showModal,      setShowModal]      = useState(false);
+  const [showSettings,   setShowSettings]   = useState(false);
+  const [editData,       setEditData]       = useState(null);
+  const [form,           setForm]           = useState(EMPTY_FORM);
+  const [filterType,     setFilterType]     = useState('ALL');
+  const [showInactive,   setShowInactive]   = useState(false);
+  const [confirmId,      setConfirmId]      = useState(null);
 
   useEffect(() => { component.fetchAll(); }, []);
 
@@ -63,11 +65,27 @@ const SalaryComponentPage = () => {
           <h1 className="text-2xl font-bold text-gray-900">Salary Components</h1>
           <p className="text-sm text-gray-400 mt-0.5">Komponen earning &amp; deduction untuk payroll</p>
         </div>
-        <button onClick={openCreate}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white
-                     text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-          + Tambah Komponen
-        </button>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          {/* Settings button */}
+          <button
+            onClick={() => setShowSettings(true)}
+            title="Pengaturan Payroll"
+            className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50
+                       text-gray-600 hover:text-gray-800 text-sm font-medium px-3.5 py-2.5
+                       rounded-xl transition-colors shadow-sm">
+            <HiOutlineCog className="w-4 h-4" />
+            <span>Pengaturan</span>
+          </button>
+
+          {/* Create button */}
+          <button onClick={openCreate}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white
+                       text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+            + Tambah Komponen
+          </button>
+        </div>
       </div>
 
       {/* Filter */}
@@ -221,6 +239,12 @@ const SalaryComponentPage = () => {
           </button>
         </div>
       </PayrollModal>
+
+      {/* Payroll Settings Modal */}
+      <PayrollSettingModal
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 };
