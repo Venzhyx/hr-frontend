@@ -6,6 +6,8 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useReimbursement } from '../../redux/hooks/useReimbursement';
 import { useTimeOff } from '../../redux/hooks/useTimeOff';
+import { useAttendanceCorrection } from '../../redux/hooks/useAttendanceCorrection';
+import { useOvertime } from '../../redux/hooks/useOvertime';
 
 // ─── Route Titles ─────────────────────────────────────────────────────────────
 
@@ -39,27 +41,27 @@ const ROUTE_TITLES = {
 const getRouteInfo = (pathname) => {
   if (ROUTE_TITLES[pathname]) return ROUTE_TITLES[pathname];
 
-  if (/^\/employees\/[^/]+\/edit$/.test(pathname))          return { title: 'Edit Employee',          sub: 'Ubah data karyawan' };
-  if (/^\/employees\/[^/]+$/.test(pathname))                return { title: 'Employee Detail',        sub: 'Detail informasi karyawan' };
-  if (/^\/departments\/[^/]+\/edit$/.test(pathname))        return { title: 'Edit Department',        sub: 'Ubah data departemen' };
-  if (/^\/departments\/[^/]+$/.test(pathname))              return { title: 'Department Detail',      sub: 'Detail informasi departemen' };
-  if (/^\/companies\/[^/]+\/edit$/.test(pathname))          return { title: 'Edit Company',           sub: 'Ubah data perusahaan' };
-  if (/^\/companies\/[^/]+$/.test(pathname))                return { title: 'Company Detail',         sub: 'Detail informasi perusahaan' };
-  if (/^\/attendance\/correction\/[^/]+\/edit$/.test(pathname)) return { title: 'Edit Correction',   sub: 'Ubah data koreksi kehadiran' };
-  if (/^\/attendance\/correction\/[^/]+$/.test(pathname))   return { title: 'Correction Detail',     sub: 'Detail koreksi kehadiran' };
-  if (/^\/attendance\/overtime\/[^/]+\/edit$/.test(pathname))   return { title: 'Edit Overtime',     sub: 'Ubah data lembur' };
-  if (/^\/attendance\/overtime\/[^/]+$/.test(pathname))     return { title: 'Overtime Detail',       sub: 'Detail lembur karyawan' };
-  if (/^\/attendance\/[^/]+\/edit$/.test(pathname))         return { title: 'Edit Attendance',        sub: 'Koreksi data kehadiran' };
-  if (/^\/attendance\/[^/]+$/.test(pathname))               return { title: 'Attendance Detail',      sub: 'Detail kehadiran karyawan' };
-  if (/^\/time-off\/[^/]+\/edit$/.test(pathname))           return { title: 'Edit Time Off',          sub: 'Ubah pengajuan cuti' };
-  if (/^\/time-off\/[^/]+$/.test(pathname))                 return { title: 'Time Off Detail',        sub: 'Detail pengajuan cuti' };
-  if (/^\/payroll\/[^/]+\/edit$/.test(pathname))            return { title: 'Edit Payroll',           sub: 'Ubah data penggajian' };
-  if (/^\/payroll\/[^/]+$/.test(pathname))                  return { title: 'Payroll Detail',         sub: 'Detail slip gaji karyawan' };
-  if (/^\/reimbursements\/[^/]+\/edit$/.test(pathname))     return { title: 'Edit Reimbursement',     sub: 'Ubah klaim biaya' };
-  if (/^\/reimbursements\/[^/]+$/.test(pathname))           return { title: 'Reimbursement Detail',   sub: 'Detail klaim biaya' };
-  if (/^\/approvals\/reimbursement\/[^/]+$/.test(pathname)) return { title: 'Reimbursement Approval', sub: 'Review klaim biaya karyawan' };
-  if (/^\/approvals\/timeoff\/[^/]+$/.test(pathname))       return { title: 'Time Off Approval',      sub: 'Review pengajuan cuti karyawan' };
-  if (/^\/approvals\/attendance\/[^/]+$/.test(pathname))    return { title: 'Attendance Approval',    sub: 'Review koreksi kehadiran' };
+  if (/^\/employees\/[^/]+\/edit$/.test(pathname))              return { title: 'Edit Employee',          sub: 'Ubah data karyawan' };
+  if (/^\/employees\/[^/]+$/.test(pathname))                    return { title: 'Employee Detail',        sub: 'Detail informasi karyawan' };
+  if (/^\/departments\/[^/]+\/edit$/.test(pathname))            return { title: 'Edit Department',        sub: 'Ubah data departemen' };
+  if (/^\/departments\/[^/]+$/.test(pathname))                  return { title: 'Department Detail',      sub: 'Detail informasi departemen' };
+  if (/^\/companies\/[^/]+\/edit$/.test(pathname))              return { title: 'Edit Company',           sub: 'Ubah data perusahaan' };
+  if (/^\/companies\/[^/]+$/.test(pathname))                    return { title: 'Company Detail',         sub: 'Detail informasi perusahaan' };
+  if (/^\/attendance\/correction\/[^/]+\/edit$/.test(pathname)) return { title: 'Edit Correction',        sub: 'Ubah data koreksi kehadiran' };
+  if (/^\/attendance\/correction\/[^/]+$/.test(pathname))       return { title: 'Correction Detail',      sub: 'Detail koreksi kehadiran' };
+  if (/^\/attendance\/overtime\/[^/]+\/edit$/.test(pathname))   return { title: 'Edit Overtime',          sub: 'Ubah data lembur' };
+  if (/^\/attendance\/overtime\/[^/]+$/.test(pathname))         return { title: 'Overtime Detail',        sub: 'Detail lembur karyawan' };
+  if (/^\/attendance\/[^/]+\/edit$/.test(pathname))             return { title: 'Edit Attendance',        sub: 'Koreksi data kehadiran' };
+  if (/^\/attendance\/[^/]+$/.test(pathname))                   return { title: 'Attendance Detail',      sub: 'Detail kehadiran karyawan' };
+  if (/^\/time-off\/[^/]+\/edit$/.test(pathname))               return { title: 'Edit Time Off',          sub: 'Ubah pengajuan cuti' };
+  if (/^\/time-off\/[^/]+$/.test(pathname))                     return { title: 'Time Off Detail',        sub: 'Detail pengajuan cuti' };
+  if (/^\/payroll\/[^/]+\/edit$/.test(pathname))                return { title: 'Edit Payroll',           sub: 'Ubah data penggajian' };
+  if (/^\/payroll\/[^/]+$/.test(pathname))                      return { title: 'Payroll Detail',         sub: 'Detail slip gaji karyawan' };
+  if (/^\/reimbursements\/[^/]+\/edit$/.test(pathname))         return { title: 'Edit Reimbursement',     sub: 'Ubah klaim biaya' };
+  if (/^\/reimbursements\/[^/]+$/.test(pathname))               return { title: 'Reimbursement Detail',   sub: 'Detail klaim biaya' };
+  if (/^\/approvals\/reimbursement\/[^/]+$/.test(pathname))     return { title: 'Reimbursement Approval', sub: 'Review klaim biaya karyawan' };
+  if (/^\/approvals\/timeoff\/[^/]+$/.test(pathname))           return { title: 'Time Off Approval',      sub: 'Review pengajuan cuti karyawan' };
+  if (/^\/approvals\/attendance\/[^/]+$/.test(pathname))        return { title: 'Attendance Approval',    sub: 'Review koreksi kehadiran' };
 
   return { title: 'HR Management', sub: '' };
 };
@@ -80,7 +82,7 @@ const relativeTime = (isoString) => {
   return `${Math.floor(diff / 86400)} hari lalu`;
 };
 
-// ─── Mappers ─────────────────────────────────────────────────────────────────
+// ─── Mappers ──────────────────────────────────────────────────────────────────
 
 const mapReimbursementToNotif = (item) => ({
   id:       `rb-${item.id}`,
@@ -104,6 +106,28 @@ const mapTimeOffToNotif = (item) => ({
   _rawDate: new Date(item.createdAt ?? 0).getTime(),
 });
 
+const mapAttendanceCorrectionToNotif = (item) => ({
+  id:       `ac-${item.id}`,
+  type:     'attendance',
+  title:    'Koreksi Kehadiran',
+  message:  `${item.employeeName} mengajukan koreksi kehadiran tanggal ${item.attendanceDate ?? item.date ?? '-'}.`,
+  time:     item.createdAt ?? '',
+  read:     false,
+  _link:    `/approvals/attendance/${item.id}`,
+  _rawDate: new Date(item.createdAt ?? 0).getTime(),
+});
+
+const mapOvertimeToNotif = (item) => ({
+  id:       `ot-${item.id}`,
+  type:     'overtime',
+  title:    'Pengajuan Lembur',
+  message:  `${item.employeeName} mengajukan lembur ${item.totalHours ?? item.hours ?? '-'} jam pada ${item.overtimeDate ?? item.date ?? '-'}.`,
+  time:     item.createdAt ?? '',
+  read:     false,
+  _link:    `/attendance/overtime/${item.id}`,
+  _rawDate: new Date(item.createdAt ?? 0).getTime(),
+});
+
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
 const TimeOffIcon = () => (
@@ -120,14 +144,39 @@ const ReimbursementIcon = () => (
   </svg>
 );
 
+const AttendanceCorrectionIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+  </svg>
+);
+
+const OvertimeIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+// ─── Dot color per type ───────────────────────────────────────────────────────
+
+const dotColorMap = {
+  timeoff:     'bg-blue-500',
+  attendance:  'bg-orange-500',
+  overtime:    'bg-purple-500',
+  reimbursement: 'bg-green-500',
+};
+
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 
 const Navbar = ({ toggleSidebar, sidebarOpen }) => {
   const location = useLocation();
   const navigate  = useNavigate();
 
-  const { reimbursements }  = useReimbursement();
-  const { timeOffRequests } = useTimeOff();
+  const { reimbursements }        = useReimbursement();
+  const { timeOffRequests }       = useTimeOff();
+  const { attendanceCorrections } = useAttendanceCorrection();
+  const { overtimes }             = useOvertime();
 
   const [currentDate,       setCurrentDate]       = useState('');
   const [routeInfo,         setRouteInfo]         = useState({ title: '', sub: '' });
@@ -141,18 +190,23 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
 
   const notifications = useMemo(() => {
     const pending = [
-      ...(reimbursements  || [])
+      ...(reimbursements || [])
         .filter(r => NEEDS_REVIEW_STATUSES.includes(r.status))
         .map(mapReimbursementToNotif),
       ...(timeOffRequests || [])
         .filter(t => NEEDS_REVIEW_STATUSES.includes(t.status))
         .map(mapTimeOffToNotif),
+      ...(attendanceCorrections || [])
+        .filter(a => NEEDS_REVIEW_STATUSES.includes(a.status))
+        .map(mapAttendanceCorrectionToNotif),
+      ...(overtimes || [])
+        .filter(o => NEEDS_REVIEW_STATUSES.includes(o.status))
+        .map(mapOvertimeToNotif),
     ];
 
     pending.sort((a, b) => (b._rawDate ?? 0) - (a._rawDate ?? 0));
-
     return pending.map(n => ({ ...n, read: readIds.has(n.id) }));
-  }, [reimbursements, timeOffRequests, readIds]);
+  }, [reimbursements, timeOffRequests, attendanceCorrections, overtimes, readIds]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -198,9 +252,27 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
   const markAllRead = () => setReadIds(new Set(notifications.map(n => n.id)));
   const clearAll    = () => setReadIds(new Set(notifications.map(n => n.id)));
 
+  const getNotifIcon = (type) => {
+    switch (type) {
+      case 'timeoff':     return <TimeOffIcon />;
+      case 'attendance':  return <AttendanceCorrectionIcon />;
+      case 'overtime':    return <OvertimeIcon />;
+      default:            return <ReimbursementIcon />;
+    }
+  };
+
+  const getNotifIconBg = (type) => {
+    switch (type) {
+      case 'timeoff':     return 'bg-blue-100 text-blue-600';
+      case 'attendance':  return 'bg-orange-100 text-orange-600';
+      case 'overtime':    return 'bg-purple-100 text-purple-600';
+      default:            return 'bg-green-100 text-green-600';
+    }
+  };
+
   return (
     <>
-      <nav className={`relative top-0 right-0 left-0  h-16 sm:h-20 z-30 transition-all duration-500 ${
+      <nav className={`relative top-0 right-0 left-0 h-16 sm:h-20 z-30 transition-all duration-500 ${
         isScrolled
           ? 'bg-white/80 backdrop-blur-xl shadow-lg border-b border-white/20'
           : 'bg-white border-b border-gray-200 shadow-sm'
@@ -209,7 +281,6 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
 
           {/* LEFT — title area */}
           <div className="flex items-center gap-2 sm:gap-4">
-            {/* Hamburger Menu Button - Mobile Only */}
             <button
               onClick={toggleSidebar}
               className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200"
@@ -217,23 +288,17 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
             >
               <HiOutlineMenu className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
-            
-            {/* Title Section */}
+
             <div className={`transition-all duration-300 ${animateTitle ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
-              {/* Title - selalu tampil */}
               <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 leading-tight">
                 {routeInfo.title}
               </h2>
-              
-              {/* Subtitle & Date - Desktop (lg) */}
               <div className="hidden lg:flex items-center gap-2 mt-0.5">
                 <HiOutlineOfficeBuilding className="w-3 h-3 text-indigo-400" />
                 <p className="text-xs text-gray-400">{routeInfo.sub}</p>
                 <span className="text-gray-300">·</span>
                 <p className="text-xs text-gray-400">{currentDate}</p>
               </div>
-              
-              {/* Subtitle & Date - Mobile & Tablet (simplified) */}
               <div className="flex lg:hidden items-center gap-1 mt-0.5">
                 <p className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[150px] sm:max-w-[200px]">
                   {routeInfo.sub}
@@ -266,7 +331,6 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
               )}
             </button>
 
-            {/* Notifications Dropdown - Responsive width */}
             {showNotifications && (
               <div
                 ref={notifRef}
@@ -291,14 +355,14 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
                 {/* Bulk actions */}
                 {notifications.length > 0 && (
                   <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-50 border-b border-gray-100">
-                    <button 
-                      onClick={markAllRead} 
+                    <button
+                      onClick={markAllRead}
                       className="text-[10px] sm:text-[11px] font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
                     >
                       Tandai semua dibaca
                     </button>
-                    <button 
-                      onClick={clearAll} 
+                    <button
+                      onClick={clearAll}
                       className="text-[10px] sm:text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
                     >
                       Tutup semua
@@ -317,10 +381,8 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
                           !notif.read ? 'bg-indigo-50/40' : ''
                         }`}
                       >
-                        <div className={`flex-shrink-0 mt-0.5 w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shadow-sm ${
-                          notif.type === 'timeoff' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
-                        }`}>
-                          {notif.type === 'timeoff' ? <TimeOffIcon /> : <ReimbursementIcon />}
+                        <div className={`flex-shrink-0 mt-0.5 w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shadow-sm ${getNotifIconBg(notif.type)}`}>
+                          {getNotifIcon(notif.type)}
                         </div>
 
                         <div className="flex-1 min-w-0">
@@ -329,9 +391,7 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
                               {notif.title}
                             </p>
                             {!notif.read && (
-                              <span className={`flex-shrink-0 mt-1 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
-                                notif.type === 'timeoff' ? 'bg-blue-500' : 'bg-green-500'
-                              }`} />
+                              <span className={`flex-shrink-0 mt-1 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${dotColorMap[notif.type] ?? 'bg-gray-400'}`} />
                             )}
                           </div>
                           <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 leading-relaxed line-clamp-2">
@@ -369,24 +429,15 @@ const Navbar = ({ toggleSidebar, sidebarOpen }) => {
         </div>
       </nav>
 
-      {/* CSS Animations */}
       <style>{`
         @keyframes slideDown {
-          from { 
-            opacity: 0; 
-            transform: translateY(-8px); 
-          }
-          to { 
-            opacity: 1; 
-            transform: translateY(0); 
-          }
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-        
         @keyframes bounce {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-2px); }
+          50%       { transform: translateY(-2px); }
         }
-        
         .animate-bounce {
           animation: bounce 0.5s ease-in-out 2;
         }

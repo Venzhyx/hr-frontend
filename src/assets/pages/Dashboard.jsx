@@ -19,6 +19,13 @@ import { useDepartment } from "../../redux/hooks/useDepartment";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MONTHS = [
+  "Januari","Februari","Maret","April","Mei","Juni",
+  "Juli","Agustus","September","Oktober","November","Desember",
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getEmpPhoto = (emp) =>
@@ -30,6 +37,11 @@ const fmtCurrency = (n) => {
   if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)} M`;
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)} Jt`;
   return `Rp ${Number(n).toLocaleString("id-ID")}`;
+};
+
+const normalizeStatus = (status) => {
+  if (!status) return "DRAFT";
+  return String(status).toUpperCase().trim();
 };
 
 const today = new Date();
@@ -142,6 +154,25 @@ const Skel = ({ cls = "h-4 w-full" }) => (
   <div className={`bg-gray-100 rounded animate-pulse ${cls}`} />
 );
 
+// ─── PayrollMonthBadge ────────────────────────────────────────────────────────
+// Badge kecil untuk label bulan/status pada section payroll
+
+const STATUS_PILL = {
+  PAID:      "bg-emerald-50 text-emerald-700 border-emerald-200",
+  FINALIZED: "bg-blue-50 text-blue-700 border-blue-200",
+  DRAFT:     "bg-amber-50 text-amber-700 border-amber-200",
+};
+
+const PayrollMonthBadge = ({ status }) => {
+  const s = normalizeStatus(status);
+  const cls = STATUS_PILL[s] ?? "bg-gray-100 text-gray-500 border-gray-200";
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}`}>
+      {s}
+    </span>
+  );
+};
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -153,10 +184,9 @@ export default function Dashboard() {
     fetchEmployees,
   } = useEmployee();
 
-  // default export, nested API: { run, payslip, loading, ... }
+  // Hanya butuh run — payslip ada di run.history[].payslips
   const {
     run,
-    payslip,
     loading: loadingPayroll,
   } = usePayroll();
 
@@ -185,7 +215,7 @@ export default function Dashboard() {
   const refresh = () => {
     fetchEmployees();
     fetchDepartments();
-    run.fetchAll();       // fetchPayrollRuns dari usePayroll
+    run.fetchAll();       // isi run.history dari GET /api/payroll/runs
     fetchOvertimes();
     fetchCorrections();
   };
@@ -221,23 +251,57 @@ export default function Dashboard() {
   ];
 
   // ─── Derived: Payroll ─────────────────────────────────────────────────────
-  // run.history  → array PayrollRun  (total gross/net per run)
-  // payslip.list → array Payslip     (per-karyawan)
-  // Gunakan payslip.list untuk hitung gross/net/deductions agregat
+  // Ambil bulan ini saja — persis logika currentRun di PayrollIndex
 
+  const now = new Date();
+
+  // Run bulan ini
+  const currentRun = useMemo(() => {
+    const history = run.history ?? [];
+    return history.find(r => {
+      const m = r.month ?? r.periodMonth ?? null;
+      const y = r.year  ?? r.periodYear  ?? null;
+      if (m != null && y != null) {
+        return Number(m) === now.getMonth() + 1 && Number(y) === now.getFullYear();
+      }
+      // Fallback: cek periodLabel
+      if (r.periodLabel) {
+        const label = r.periodLabel.toLowerCase();
+        return (
+          label.includes(MONTHS[now.getMonth()].toLowerCase()) &&
+          label.includes(String(now.getFullYear()))
+        );
+      }
+      return false;
+    }) ?? history[0] ?? null;
+  }, [run.history]);
+
+  // Payslip bulan ini
+  const currentSlips = useMemo(() => {
+    return (currentRun?.payslips ?? []);
+  }, [currentRun]);
+
+  // Agregat bulan ini
   const payrollStats = useMemo(() => {
-    const list = payslip?.list ?? [];
+    const list = currentSlips;
     const totalGross = list.reduce(
-      (s, p) => s + (p.grossSalary ?? p.gross ?? p.totalSalary ?? p.amount ?? 0), 0
+      (s, p) => s + Number(p.basicSalary ?? 0) + Number(p.totalEarning ?? 0), 0
     );
     const totalNet = list.reduce(
-      (s, p) => s + (p.netSalary ?? p.net ?? p.takeHomePay ?? 0), 0
+      (s, p) => s + Number(p.netSalary ?? 0), 0
     );
     const totalDeductions = list.reduce(
-      (s, p) => s + (p.totalDeductions ?? p.deductions ?? 0), 0
+      (s, p) => s + Number(p.totalDeduction ?? p.totalDeductions ?? 0), 0
     );
-    return { totalGross, totalNet, totalDeductions, total: list.length };
-  }, [payslip?.list]);
+    const draftCount     = list.filter(p => normalizeStatus(p.status) === "DRAFT").length;
+    const finalizedCount = list.filter(p => normalizeStatus(p.status) === "FINALIZED").length;
+    const paidCount      = list.filter(p => normalizeStatus(p.status) === "PAID").length;
+    return {
+      totalGross, totalNet, totalDeductions,
+      total: list.length,
+      draftCount, finalizedCount, paidCount,
+    };
+  }, [currentSlips]);
 
   // ─── Derived: Overtime ────────────────────────────────────────────────────
 
@@ -272,6 +336,12 @@ export default function Dashboard() {
   const recentEmployees = useMemo(() => (employees ?? []).slice(0, 5), [employees]);
 
   const loadingDept = loadingEmployees || loadingDepartments;
+
+  // Label periode payroll yang tampil
+  const periodLabel = currentRun?.periodLabel
+    ?? (currentRun
+        ? `${MONTHS[(currentRun.month ?? currentRun.periodMonth ?? now.getMonth() + 1) - 1]} ${currentRun.year ?? currentRun.periodYear ?? now.getFullYear()}`
+        : `${MONTHS[now.getMonth()]} ${now.getFullYear()}`);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -320,7 +390,7 @@ export default function Dashboard() {
         <KpiCard
           label="Company Payroll (Net)"
           value={fmtCurrency(payrollStats.totalNet)}
-          sub={`${payrollStats.total} slip gaji`}
+          sub={`${payrollStats.total} slip · ${periodLabel}`}
           Icon={HiOutlineCurrencyDollar}
           accent="bg-emerald-50"
           iconAccent="text-emerald-500"
@@ -365,26 +435,64 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Payroll breakdown */}
+        {/* Payroll breakdown — bulan ini */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <SectionTitle icon={HiOutlineCurrencyDollar}>Ringkasan Payroll</SectionTitle>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <HiOutlineCurrencyDollar className="w-4 h-4 text-indigo-400" />
+              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Ringkasan Payroll</h2>
+            </div>
+            {currentRun && (
+              <PayrollMonthBadge status={currentRun.status} />
+            )}
+          </div>
+
           {loadingPayroll ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, i) => <Skel key={i} />)}
             </div>
+          ) : payrollStats.total === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">
+              Belum ada data payroll<br />
+              <span className="text-xs">untuk {periodLabel}</span>
+            </p>
           ) : (
             <>
+              {/* Periode info */}
+              <p className="text-[11px] text-gray-400 mb-3">
+                Periode: <span className="font-semibold text-gray-600">{periodLabel}</span>
+              </p>
+
               <div className="space-y-0">
                 {[
-                  { label: "Total Gross",          value: fmtCurrency(payrollStats.totalGross),      dot: "bg-emerald-400" },
-                  { label: "Total Net (Take Home)", value: fmtCurrency(payrollStats.totalNet),        dot: "bg-indigo-400"  },
-                  { label: "Total Potongan",        value: fmtCurrency(payrollStats.totalDeductions), dot: "bg-red-400"     },
-                  { label: "Jumlah Slip",           value: `${payrollStats.total} slip`,              dot: "bg-amber-400"   },
+                  { label: "Total Gross",           value: fmtCurrency(payrollStats.totalGross),      dot: "bg-emerald-400" },
+                  { label: "Total Net (Take Home)",  value: fmtCurrency(payrollStats.totalNet),        dot: "bg-indigo-400"  },
+                  { label: "Total Potongan",         value: fmtCurrency(payrollStats.totalDeductions), dot: "bg-red-400"     },
+                  { label: "Jumlah Slip",            value: `${payrollStats.total} slip`,              dot: "bg-amber-400"   },
                 ].map(s => (
                   <StatusRow key={s.label} label={s.label} value={s.value} dot={s.dot} />
                 ))}
               </div>
 
+              {/* Status breakdown DRAFT / FINALIZED / PAID */}
+              <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                <p className="text-xs text-gray-400 mb-2">Status Payslip</p>
+                {[
+                  { label: "Draft",     count: payrollStats.draftCount,     bg: "bg-amber-400"   },
+                  { label: "Finalized", count: payrollStats.finalizedCount, bg: "bg-blue-400"    },
+                  { label: "Paid",      count: payrollStats.paidCount,      bg: "bg-emerald-400" },
+                ].map(({ label, count, bg }) => (
+                  <div key={label} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-full ${bg}`} />
+                      <span className="text-gray-500">{label}</span>
+                    </div>
+                    <span className="font-bold text-gray-800 tabular-nums">{count}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Komposisi bar net vs potongan */}
               {payrollStats.totalGross > 0 && (() => {
                 const net = payrollStats.totalNet / payrollStats.totalGross;
                 const ded = payrollStats.totalDeductions / payrollStats.totalGross;
@@ -460,11 +568,11 @@ export default function Dashboard() {
             <>
               <div className="space-y-0">
                 {[
-                  { label: "Total Pengajuan",     value: overtimeStats.total,                    dot: "bg-gray-300"   },
-                  { label: "Menunggu Approval",   value: overtimeStats.pending,                  dot: "bg-amber-400"  },
-                  { label: "Disetujui",           value: overtimeStats.approved,                 dot: "bg-emerald-400"},
-                  { label: "Ditolak",             value: overtimeStats.rejected,                 dot: "bg-red-400"    },
-                  { label: "Total Jam Disetujui", value: `${overtimeStats.totalHours} jam`,      dot: "bg-purple-400" },
+                  { label: "Total Pengajuan",     value: overtimeStats.total,               dot: "bg-gray-300"    },
+                  { label: "Menunggu Approval",   value: overtimeStats.pending,             dot: "bg-amber-400"   },
+                  { label: "Disetujui",           value: overtimeStats.approved,            dot: "bg-emerald-400" },
+                  { label: "Ditolak",             value: overtimeStats.rejected,            dot: "bg-red-400"     },
+                  { label: "Total Jam Disetujui", value: `${overtimeStats.totalHours} jam`, dot: "bg-purple-400"  },
                 ].map(s => (
                   <StatusRow key={s.label} label={s.label} value={s.value} dot={s.dot} />
                 ))}

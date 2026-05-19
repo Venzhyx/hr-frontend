@@ -312,7 +312,7 @@ const CompanyDetailModal = ({ isOpen, onClose, companyId }) => {
                       <div className="sm:col-span-2">
                         <InfoRow 
                           label="Street Address" 
-                          value={company.address} 
+                          value={company.formattedAddress || company.address}
                           icon={HiOutlineMapPin}
                         />
                       </div>
