@@ -14,6 +14,7 @@ import {
 } from "react-icons/hi";
 import { useApproval } from "../../../redux/hooks/useApproval";
 import { useEmployee } from "../../../redux/hooks/useEmployee";
+import { useUser } from "../../../redux/hooks/useUser";
 import { useReimbursement } from "../../../redux/hooks/useReimbursement";
 import { useTimeOff } from "../../../redux/hooks/useTimeOff";
 import { useAttendanceCorrection } from "../../../redux/hooks/useAttendanceCorrection";
@@ -23,9 +24,24 @@ const NEEDS_REVIEW_STATUSES = ["SUBMITTED", "PENDING"];
 const ATTENDANCE_NEEDS_REVIEW_STATUSES = ["PENDING"];
 
 // ─── Add Approver Modal ───────────────────────────────────────────────────────
-const AddApproverModal = ({ approvers, employees, onAdd, onClose }) => {
+const AddApproverModal = ({ approvers, employees, users, onAdd, onClose }) => {
   const usedIds = approvers.map((a) => a.employeeId);
-  const active = employees?.filter((e) => e.status === "ACTIVE" && !usedIds.includes(e.id)) || [];
+
+  // Buat set employeeId yang terhubung ke akun ADMIN
+  // Pattern sama seperti IndexAccount: cross-reference users ↔ employees via employeeId
+  const adminEmployeeIds = new Set(
+    (users || [])
+      .filter((u) => u.role === "ADMIN" && u.employeeId != null && u.isActive)
+      .map((u) => u.employeeId)
+  );
+
+  const adminEmployees = (employees || []).filter(
+    (e) =>
+      e.status === "ACTIVE" &&
+      adminEmployeeIds.has(e.id) &&
+      !usedIds.includes(e.id)
+  );
+
   const nextOrder = approvers.length + 1;
   const [form, setForm] = useState({ employeeId: "", isRequired: null });
   const [saving, setSaving] = useState(false);
@@ -63,30 +79,44 @@ const AddApproverModal = ({ approvers, employees, onAdd, onClose }) => {
           </button>
         </div>
         <div className="px-5 py-4 space-y-4">
-          {error && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+          {error && (
+            <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Employee <span className="text-red-500">*</span>
+              Select Admin Employee <span className="text-red-500">*</span>
             </label>
-            <select
-              value={form.employeeId}
-              onChange={(e) => setForm((p) => ({ ...p, employeeId: e.target.value }))}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">Select Employee</option>
-              {active.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}{e.employeeCode ? ` (${e.employeeCode})` : ""}
-                </option>
-              ))}
-            </select>
+            {adminEmployees.length === 0 ? (
+              <p className="text-xs text-gray-400 bg-gray-50 px-3 py-2 rounded-lg">
+                Tidak ada admin yang tersedia untuk ditambahkan.
+              </p>
+            ) : (
+              <select
+                value={form.employeeId}
+                onChange={(e) => setForm((p) => ({ ...p, employeeId: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Select Admin Employee</option>
+                {adminEmployees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}{e.employeeCode ? ` (${e.employeeCode})` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-[11px] text-gray-400 mt-1">
+              Hanya akun dengan role <span className="font-semibold text-indigo-500">Admin</span> yang dapat dijadikan approver.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Required <span className="text-red-500">*</span>
             </label>
             <div className="space-y-2">
-              {[{ val: true, label: "Required" }, { val: false, label: "Optional" }].map((opt) => (
+              {[
+                { val: true, label: "Required" },
+                { val: false, label: "Optional" },
+              ].map((opt) => (
                 <label
                   key={String(opt.val)}
                   className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
@@ -105,7 +135,9 @@ const AddApproverModal = ({ approvers, employees, onAdd, onClose }) => {
                     {opt.label}
                   </span>
                   {opt.val && (
-                    <span className="ml-auto text-xs text-gray-400">Counts toward minimum approval</span>
+                    <span className="ml-auto text-xs text-gray-400">
+                      Counts toward minimum approval
+                    </span>
                   )}
                 </label>
               ))}
@@ -113,12 +145,15 @@ const AddApproverModal = ({ approvers, employees, onAdd, onClose }) => {
           </div>
         </div>
         <div className="px-5 pb-5 flex gap-2">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+          >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || adminEmployees.length === 0}
             className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors"
           >
             {saving ? "Saving…" : "Add Approver"}
@@ -129,8 +164,8 @@ const AddApproverModal = ({ approvers, employees, onAdd, onClose }) => {
   );
 };
 
-// ─── Approval Settings Modal (Generic untuk semua module) ─────────────────────
-const ApprovalSettingsModal = ({ title, approvers, employees, onClose, onAddApprover, onDeleteApprover }) => {
+// ─── Approval Settings Modal ──────────────────────────────────────────────────
+const ApprovalSettingsModal = ({ approvers, employees, users, onClose, onAddApprover, onDeleteApprover }) => {
   const sorted = [...approvers].sort((a, b) => a.approvalOrder - b.approvalOrder);
   const minimumApproval = sorted.filter((a) => a.isRequired === true).length;
   const [showAdd, setShowAdd] = useState(false);
@@ -148,8 +183,12 @@ const ApprovalSettingsModal = ({ title, approvers, employees, onClose, onAddAppr
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div>
-              <h2 className="text-lg font-bold text-gray-800">{title}</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Manage approvers and minimum approval</p>
+              <h2 className="text-lg font-bold text-gray-800">Approval Settings</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Approver ini berlaku untuk{" "}
+                <span className="font-semibold text-indigo-500">semua module</span>{" "}
+                (Reimbursement, Time Off, Attendance, Overtime)
+              </p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
               <HiOutlineX className="w-5 h-5 text-gray-500" />
@@ -159,7 +198,8 @@ const ApprovalSettingsModal = ({ title, approvers, employees, onClose, onAddAppr
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-700">
-                  Approvers <span className="ml-2 text-xs text-gray-400 font-normal">({sorted.length})</span>
+                  Approvers{" "}
+                  <span className="ml-2 text-xs text-gray-400 font-normal">({sorted.length})</span>
                 </h3>
                 <button
                   onClick={() => setShowAdd(true)}
@@ -198,9 +238,13 @@ const ApprovalSettingsModal = ({ title, approvers, employees, onClose, onAddAppr
                           </td>
                           <td className="px-4 py-3">
                             {ap.isRequired ? (
-                              <span className="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-medium">Required</span>
+                              <span className="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-medium">
+                                Required
+                              </span>
                             ) : (
-                              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Optional</span>
+                              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                                Optional
+                              </span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -220,12 +264,16 @@ const ApprovalSettingsModal = ({ title, approvers, employees, onClose, onAddAppr
               )}
             </div>
 
-            <div className={`rounded-xl border px-5 py-4 flex items-center gap-4 ${
-              minimumApproval > 0 ? "bg-indigo-50 border-indigo-200" : "bg-gray-50 border-gray-200"
-            }`}>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                minimumApproval > 0 ? "bg-indigo-600" : "bg-gray-300"
-              }`}>
+            <div
+              className={`rounded-xl border px-5 py-4 flex items-center gap-4 ${
+                minimumApproval > 0 ? "bg-indigo-50 border-indigo-200" : "bg-gray-50 border-gray-200"
+              }`}
+            >
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  minimumApproval > 0 ? "bg-indigo-600" : "bg-gray-300"
+                }`}
+              >
                 <HiOutlineShieldCheck className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
@@ -233,7 +281,8 @@ const ApprovalSettingsModal = ({ title, approvers, employees, onClose, onAddAppr
                   Minimum Approval
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Auto-calculated from approvers with <span className="font-medium text-red-500">Required</span> status
+                  Auto-calculated from approvers with{" "}
+                  <span className="font-medium text-red-500">Required</span> status
                 </p>
               </div>
               <div className={`text-3xl font-bold ${minimumApproval > 0 ? "text-indigo-600" : "text-gray-400"}`}>
@@ -245,8 +294,8 @@ const ApprovalSettingsModal = ({ title, approvers, employees, onClose, onAddAppr
               <div className="flex items-start gap-2 px-3 py-2.5 bg-yellow-50 border border-yellow-200 rounded-xl">
                 <HiOutlineInformationCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-yellow-700">
-                  No approvers are marked as <span className="font-semibold">Required</span>.
-                  Minimum approval is 0 — all approvers are optional.
+                  No approvers are marked as{" "}
+                  <span className="font-semibold">Required</span>. Minimum approval is 0 — all approvers are optional.
                 </p>
               </div>
             )}
@@ -257,6 +306,7 @@ const ApprovalSettingsModal = ({ title, approvers, employees, onClose, onAddAppr
         <AddApproverModal
           approvers={approvers}
           employees={employees}
+          users={users}
           onAdd={onAddApprover}
           onClose={() => setShowAdd(false)}
         />
@@ -302,20 +352,24 @@ const ApprovalCard = ({ tab, pendingCount, onNavigate, onOpenSettings }) => {
       }`}
     >
       <div className="relative w-fit mb-4">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-          tab.available
-            ? hasPending
-              ? "bg-red-50 group-hover:bg-red-500"
-              : "bg-indigo-100 group-hover:bg-indigo-600"
-            : "bg-gray-100"
-        }`}>
-          <Icon className={`w-6 h-6 transition-colors ${
+        <div
+          className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
             tab.available
               ? hasPending
-                ? "text-red-500 group-hover:text-white"
-                : "text-indigo-600 group-hover:text-white"
-              : "text-gray-400"
-          }`} />
+                ? "bg-red-50 group-hover:bg-red-500"
+                : "bg-indigo-100 group-hover:bg-indigo-600"
+              : "bg-gray-100"
+          }`}
+        >
+          <Icon
+            className={`w-6 h-6 transition-colors ${
+              tab.available
+                ? hasPending
+                  ? "text-red-500 group-hover:text-white"
+                  : "text-indigo-600 group-hover:text-white"
+                : "text-gray-400"
+            }`}
+          />
         </div>
         {hasPending && (
           <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse" />
@@ -334,19 +388,18 @@ const ApprovalCard = ({ tab, pendingCount, onNavigate, onOpenSettings }) => {
         </div>
       )}
 
-      {/* Settings menu untuk SEMUA module yang available */}
-      {tab.available && (
+      {tab.showSettings && tab.available && (
         <div ref={menuRef} className="absolute top-4 right-4" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => setMenuOpen((v) => !v)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="p-1.5 hover:bg-gray-100 rounded-lg"
+          >
             <HiOutlineDotsVertical className="w-4 h-4 text-gray-400" />
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-8 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-48">
               <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  onOpenSettings();
-                }}
+                onClick={() => { setMenuOpen(false); onOpenSettings(); }}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
               >
                 <HiOutlineShieldCheck className="w-4 h-4 text-indigo-500" />
@@ -358,9 +411,11 @@ const ApprovalCard = ({ tab, pendingCount, onNavigate, onOpenSettings }) => {
       )}
 
       {tab.available && (
-        <div className={`absolute bottom-5 right-5 transition-colors ${
-          hasPending ? "text-red-300 group-hover:text-red-500" : "text-gray-300 group-hover:text-indigo-500"
-        }`}>
+        <div
+          className={`absolute bottom-5 right-5 transition-colors ${
+            hasPending ? "text-red-300 group-hover:text-red-500" : "text-gray-300 group-hover:text-indigo-500"
+          }`}
+        >
           <HiOutlineChevronRight className="w-5 h-5" />
         </div>
       )}
@@ -368,7 +423,7 @@ const ApprovalCard = ({ tab, pendingCount, onNavigate, onOpenSettings }) => {
   );
 };
 
-// ─── TABS - Semua 4 module available ──────────────────────────────────────────
+// ─── TABS ─────────────────────────────────────────────────────────────────────
 const TABS = [
   {
     key: "reimbursement",
@@ -377,6 +432,7 @@ const TABS = [
     icon: HiOutlineClipboardList,
     path: "/approvals/reimbursement",
     available: true,
+    showSettings: true,
   },
   {
     key: "timeoff",
@@ -385,6 +441,7 @@ const TABS = [
     icon: HiOutlineClock,
     path: "/approvals/timeoff",
     available: true,
+    showSettings: true,
   },
   {
     key: "attendance",
@@ -393,6 +450,7 @@ const TABS = [
     icon: HiOutlineShieldCheck,
     path: "/approvals/attendance",
     available: true,
+    showSettings: true,
   },
   {
     key: "overtime",
@@ -401,71 +459,44 @@ const TABS = [
     icon: HiOutlineClock,
     path: "/approvals/overtime",
     available: true,
+    showSettings: true,
   },
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const ApprovalPage = () => {
   const navigate = useNavigate();
-  
-  // Gunakan useApproval dengan type berbeda untuk setiap module
-  const reimbursementApproval = useApproval({ type: "reimbursement" });
-  const timeoffApproval = useApproval({ type: "timeoff" });
-  const attendanceApproval = useApproval({ type: "attendance" });
-  const overtimeApproval = useApproval({ type: "overtime" });
 
+  const { approvers, fetchApprovers, createApprover, deleteApprover } = useApproval({
+    type: "reimbursement",
+  });
   const { employees, fetchEmployees } = useEmployee();
+  const { list: users, fetchUsers }   = useUser();
   const { reimbursements, fetchReimbursements } = useReimbursement();
   const { timeOffRequests, fetchTimeOffRequests } = useTimeOff();
   const attendanceHook = useAttendanceCorrection({ role: "admin" });
-  const overtimeHook = useOvertime({ role: "admin" });
+  const overtimeHook   = useOvertime({ role: "admin" });
 
-  const [showSettingsFor, setShowSettingsFor] = useState(null); // null atau module key
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    // Fetch semua approvers
-    reimbursementApproval.fetchApprovers();
-    timeoffApproval.fetchApprovers();
-    attendanceApproval.fetchApprovers();
-    overtimeApproval.fetchApprovers();
-
+    fetchApprovers();
     fetchEmployees();
+    fetchUsers();
     fetchReimbursements();
     fetchTimeOffRequests();
     if (attendanceHook.handleRefresh) attendanceHook.handleRefresh();
-    if (overtimeHook.fetchOvertimes) overtimeHook.fetchOvertimes();
+    if (overtimeHook.fetchOvertimes)  overtimeHook.fetchOvertimes();
   }, []);
 
   const pendingCounts = {
     reimbursement: (reimbursements || []).filter((r) => NEEDS_REVIEW_STATUSES.includes(r.status)).length,
-    timeoff: (timeOffRequests || []).filter((t) => NEEDS_REVIEW_STATUSES.includes(t.status)).length,
-    attendance: (attendanceHook.corrections || []).filter((c) => ATTENDANCE_NEEDS_REVIEW_STATUSES.includes(c.status)).length,
-    overtime: (overtimeHook.overtimes || []).filter((o) => o.status === "PENDING").length,
+    timeoff:       (timeOffRequests || []).filter((t) => NEEDS_REVIEW_STATUSES.includes(t.status)).length,
+    attendance:    (attendanceHook.corrections || []).filter((c) => ATTENDANCE_NEEDS_REVIEW_STATUSES.includes(c.status)).length,
+    overtime:      (overtimeHook.overtimes || []).filter((o) => o.status === "PENDING").length,
   };
 
   const totalPending = Object.values(pendingCounts).reduce((a, b) => a + b, 0);
-
-  // Konfigurasi untuk setiap module
-  const moduleConfig = {
-    reimbursement: {
-      hook: reimbursementApproval,
-      title: "Approval Settings — Reimbursement",
-    },
-    timeoff: {
-      hook: timeoffApproval,
-      title: "Approval Settings — Time Off",
-    },
-    attendance: {
-      hook: attendanceApproval,
-      title: "Approval Settings — Attendance",
-    },
-    overtime: {
-      hook: overtimeApproval,
-      title: "Approval Settings — Overtime",
-    },
-  };
-
-  const activeModule = showSettingsFor ? moduleConfig[showSettingsFor] : null;
 
   return (
     <>
@@ -475,7 +506,9 @@ const ApprovalPage = () => {
             <h1 className="text-2xl font-bold text-gray-800">Approval</h1>
             {totalPending > 0 && <PendingBadge count={totalPending} />}
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">Select a category to manage approval workflows</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Select a category to manage approval workflows
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -485,21 +518,20 @@ const ApprovalPage = () => {
               tab={tab}
               pendingCount={pendingCounts[tab.key] ?? 0}
               onNavigate={navigate}
-              onOpenSettings={() => setShowSettingsFor(tab.key)}
+              onOpenSettings={() => setShowSettings(true)}
             />
           ))}
         </div>
       </div>
 
-      {/* Satu modal untuk semua module, data dinamis */}
-      {showSettingsFor && activeModule && (
+      {showSettings && (
         <ApprovalSettingsModal
-          title={activeModule.title}
-          approvers={activeModule.hook.approvers}
+          approvers={approvers}
           employees={employees}
-          onClose={() => setShowSettingsFor(null)}
-          onAddApprover={activeModule.hook.createApprover}
-          onDeleteApprover={activeModule.hook.deleteApprover}
+          users={users}
+          onClose={() => setShowSettings(false)}
+          onAddApprover={createApprover}
+          onDeleteApprover={deleteApprover}
         />
       )}
     </>

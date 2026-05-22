@@ -395,7 +395,11 @@ const ApprovalTimeline = ({ approvals = [] }) => {
 };
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
-const DetailModal = ({ overtime, onClose, onApprove, onReject, empPhoto }) => {
+const DetailModal = ({
+ overtime,
+ onClose,
+ empPhoto
+}) => {
   if (!overtime) return null;
 
   const displayStatus = getDisplayStatus(overtime);
@@ -524,30 +528,6 @@ const DetailModal = ({ overtime, onClose, onApprove, onReject, empPhoto }) => {
           <Section title="Riwayat Approval">
             <ApprovalTimeline approvals={approvals} />
           </Section>
-        </div>
-
-        <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0">
-          {canAct ? (
-            <div className="flex gap-3">
-              <button
-                onClick={() => onReject(overtime.id)}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold rounded-xl transition-colors shadow-sm">
-                <HiOutlineX className="w-4 h-4" />
-                Reject
-              </button>
-              <button
-                onClick={() => onApprove(overtime.id)}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
-                <HiOutlineCheck className="w-4 h-4" />
-                Approve
-              </button>
-            </div>
-          ) : (
-            <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${sCfg.className}`}>
-              <span className={`w-2 h-2 rounded-full ${sCfg.dot}`} />
-              Request sudah {sCfg.label}
-            </div>
-          )}
         </div>
       </div>
     </div>

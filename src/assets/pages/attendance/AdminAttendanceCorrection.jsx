@@ -431,193 +431,254 @@ const ApprovalTimeline = ({ approvals = [] }) => {
   );
 };
 
-// ─── Detail Modal ─────────────────────────────────────────────────────────────
-const DetailModal = ({ correction, onClose, onApprove, onReject, onEdit, onDelete, actionLoading, actionError, empPhoto }) => {
+const DetailModal = ({
+  correction,
+  onClose,
+  onEdit,
+  onDelete,
+  actionError,
+  empPhoto,
+}) => {
   if (!correction) return null;
 
   const displayStatus = getDisplayStatus(correction);
-  const sCfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG.SUBMITTED;
-  const canAct = displayStatus === "SUBMITTED" || displayStatus === "PENDING";
-  const canEdit = displayStatus === "SUBMITTED";
-  const canDelete = displayStatus === "SUBMITTED";
-  const initials = correction.employeeName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
-  const approvals = correction.approvals || [];
+  const sCfg =
+    STATUS_CONFIG[displayStatus] ||
+    STATUS_CONFIG.SUBMITTED;
+
+  const canEdit =
+    displayStatus === "SUBMITTED";
+
+  const canDelete =
+    displayStatus === "SUBMITTED";
+
+  const initials =
+    correction.employeeName
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?";
+
+  const approvals =
+    correction.approvals || [];
 
   useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    document.body.style.overflow = "hidden";
+    const h = (e) => {
+      if (e.key === "Escape")
+        onClose();
+    };
+
+    document.addEventListener(
+      "keydown",
+      h
+    );
+
+    document.body.style.overflow =
+      "hidden";
+
     return () => {
-      document.removeEventListener("keydown", h);
-      document.body.style.overflow = "";
+      document.removeEventListener(
+        "keydown",
+        h
+      );
+
+      document.body.style.overflow =
+        "";
     };
   }, [onClose]);
-
-  const handleEdit = () => {
-    if (onEdit) onEdit(correction);
-    onClose();
-  };
-
-  const handleDelete = () => {
-    if (onDelete) onDelete(correction);
-    onClose();
-  };
 
   return (
     <div
       className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (
+          e.target === e.currentTarget
+        )
+          onClose();
+      }}
     >
       <div
         className="bg-white w-full sm:max-w-xl rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) =>
+          e.stopPropagation()
+        }
       >
-        <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
-          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4 sm:hidden" />
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-gray-100">
+
           <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
+
+            <div className="flex-1">
+
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${sCfg.className}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${sCfg.dot}`} />
+
+                <span
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${sCfg.className}`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${sCfg.dot}`}
+                  />
+
                   {sCfg.label}
+
                 </span>
-                <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {TYPE_LABELS[correction.type] || correction.type}
+
+                <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full">
+                  {TYPE_LABELS[
+                    correction.type
+                  ] ||
+                    correction.type}
                 </span>
+
               </div>
-              <h2 className="text-lg font-bold text-gray-900 leading-snug">Attendance Correction Request</h2>
-              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                <HiOutlineClock className="w-3 h-3" /> Diajukan {fmtDateTime(correction.createdAt)}
+
+              <h2 className="text-lg font-bold text-gray-900">
+                Attendance Correction
+              </h2>
+
+              <p className="text-xs text-gray-400">
+                Diajukan{" "}
+                {fmtDateTime(
+                  correction.createdAt
+                )}
               </p>
+
             </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex gap-2">
+
               {canEdit && (
-                <button onClick={handleEdit}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-100 hover:bg-amber-200 transition-colors flex-shrink-0"
-                  title="Edit">
+                <button
+                  onClick={() => {
+                    onEdit?.(
+                      correction
+                    );
+                    onClose();
+                  }}
+                  className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center"
+                >
                   <HiOutlinePencilAlt className="w-4 h-4 text-amber-600" />
                 </button>
               )}
+
               {canDelete && (
-                <button onClick={handleDelete}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 hover:bg-red-200 transition-colors flex-shrink-0"
-                  title="Hapus">
+                <button
+                  onClick={() => {
+                    onDelete?.(
+                      correction
+                    );
+                    onClose();
+                  }}
+                  className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center"
+                >
                   <HiOutlineTrash className="w-4 h-4 text-red-500" />
                 </button>
               )}
-              <button onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex-shrink-0">
-                <HiOutlineX className="w-4 h-4 text-gray-500" />
+
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"
+              >
+                <HiOutlineX className="w-4 h-4" />
               </button>
+
             </div>
+
           </div>
 
-          <div className="mt-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-2xl px-5 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-0.5">Tanggal Koreksi</p>
-                <p className="text-xl font-bold text-amber-700">{fmtDate(correction.date)}</p>
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center">
-                <HiOutlineCalendar className="w-6 h-6 text-amber-500" />
-              </div>
-            </div>
-          </div>
-
-          {correction.description && (
-            <div className="mt-3 rounded-xl px-4 py-3 bg-blue-50 border border-blue-200 flex items-start gap-2">
-              <HiOutlineAnnotation className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-0.5">Alasan Pengajuan</p>
-                <p className="text-xs text-blue-800 leading-relaxed italic">"{correction.description}"</p>
-              </div>
-            </div>
-          )}
-
-          {actionError && (
-            <div className="mt-3 flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-              <HiOutlineExclamationCircle className="w-4 h-4 shrink-0" />
-              {actionError}
-            </div>
-          )}
         </div>
 
+        {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+
           <Section title="Informasi Pengaju">
-            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-2xl">
-              <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-white shadow-sm">
+
+            <div className="flex items-center gap-4">
+
+              <div className="w-12 h-12 rounded-xl overflow-hidden">
+
                 {empPhoto ? (
-                  <img src={empPhoto} alt={correction.employeeName} className="w-full h-full object-cover" />
+
+                  <img
+                    src={empPhoto}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+
                 ) : (
+
                   <div className="w-full h-full bg-amber-100 flex items-center justify-center">
-                    <span className="text-amber-700 font-bold text-lg">{initials}</span>
+                    {initials}
                   </div>
+
                 )}
+
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-900 truncate">{correction.employeeName}</p>
-                {correction.employeeCode && <p className="text-xs text-gray-500 mt-0.5">NIK: {correction.employeeCode}</p>}
-                {correction.departmentName && (
-                  <p className="flex items-center gap-1 text-xs text-gray-400">
-                    <HiOutlineOfficeBuilding className="w-3 h-3" /> {correction.departmentName}
-                  </p>
-                )}
+
+              <div>
+
+                <p className="font-bold">
+                  {
+                    correction.employeeName
+                  }
+                </p>
+
+                <p className="text-xs text-gray-400">
+                  {
+                    correction.departmentName
+                  }
+                </p>
+
               </div>
+
             </div>
+
           </Section>
 
           <Section title="Detail Koreksi">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InfoRowDetail icon={HiOutlineCalendar}    label="Tanggal"         value={fmtDate(correction.date)} />
-              <InfoRowDetail icon={HiOutlineShieldCheck} label="Tipe Koreksi"    value={TYPE_LABELS[correction.type] || correction.type} />
-              {correction.oldCheckIn && (
-                <InfoRowDetail icon={HiOutlineClock}     label="Check-in Lama"   value={fmtTime(correction.oldCheckIn)} />
-              )}
-              {correction.newCheckIn && (
-                <InfoRowDetail icon={HiOutlineCheck}     label="Check-in Baru"   value={fmtDateTime(correction.newCheckIn)} />
-              )}
-              {correction.oldCheckOut && (
-                <InfoRowDetail icon={HiOutlineClock}     label="Check-out Lama"  value={fmtTime(correction.oldCheckOut)} />
-              )}
-              {correction.newCheckOut && (
-                <InfoRowDetail icon={HiOutlineCheck}     label="Check-out Baru"  value={fmtDateTime(correction.newCheckOut)} />
-              )}
+
+            <div className="grid grid-cols-2 gap-4">
+
+              <InfoRowDetail
+                icon={
+                  HiOutlineCalendar
+                }
+                label="Tanggal"
+                value={fmtDate(
+                  correction.date
+                )}
+              />
+
+              <InfoRowDetail
+                icon={
+                  HiOutlineShieldCheck
+                }
+                label="Tipe"
+                value={
+                  TYPE_LABELS[
+                    correction.type
+                  ]
+                }
+              />
+
             </div>
+
           </Section>
 
+          {/* APPROVER TETAP MUNCUL */}
           <Section title="Alur Approval">
-            <ApprovalTimeline approvals={approvals} />
+
+            <ApprovalTimeline
+              approvals={approvals}
+            />
+
           </Section>
+
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0">
-          {canAct ? (
-            <div className="flex gap-3">
-              <button
-                onClick={() => onReject(correction.id)}
-                disabled={actionLoading}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50"
-              >
-                {actionLoading ? <Spinner /> : <HiOutlineX className="w-4 h-4" />}
-                Reject
-              </button>
-              <button
-                onClick={() => onApprove(correction.id)}
-                disabled={actionLoading}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50"
-              >
-                {actionLoading ? <Spinner /> : <HiOutlineCheck className="w-4 h-4 font-bold" />}
-                Approve
-              </button>
-            </div>
-          ) : (
-            <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${sCfg.className}`}>
-              <span className={`w-2 h-2 rounded-full ${sCfg.dot}`} />
-              Request sudah {sCfg.label}
-            </div>
-          )}
-        </div>
       </div>
+
     </div>
   );
 };
@@ -1174,14 +1235,19 @@ const AdminAttendanceCorrection = () => {
         <DetailModal
           correction={selectedCorrection}
           onClose={closeDetailModal}
-          onApprove={handleApprove}
-          onReject={handleReject}
           onEdit={handleEdit}
           onDelete={handleDeleteClick}
-          actionLoading={actionLoading}
           actionError={actionError}
-          empPhoto={getEmpPhoto(empMap[String(selectedCorrection.employeeId)])}
-        />
+          empPhoto={
+            getEmpPhoto(
+              empMap[
+              String(
+                selectedCorrection.employeeId
+              )
+              ]
+            )
+          }
+          />
       )}
 
       {showDeleteModal && deletingItem && (

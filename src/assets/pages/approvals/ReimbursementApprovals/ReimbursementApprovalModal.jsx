@@ -90,27 +90,48 @@ const isPDFUrl   = (url) => /\.pdf(\?.*)?$/i.test(url);
 
 const AttachmentPreview = ({ url, name }) => {
   const [expanded, setExpanded] = useState(false);
+
   if (!url) return null;
+
   const img = isImageUrl(url);
   const pdf = isPDFUrl(url);
+
   return (
     <div className="space-y-2">
       <button
         type="button"
-        onClick={() => setExpanded((p) => !p)}
+        onClick={() => setExpanded((prev) => !prev)}
         className="w-full flex items-center gap-3 p-3 border border-dashed border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors"
       >
+        {/* Icon */}
         <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-          {img
-            ? <HiOutlinePhotograph className="w-5 h-5 text-indigo-600" />
-            : <HiOutlineDocumentText className="w-5 h-5 text-indigo-600" />}
+          {img ? (
+            <HiOutlinePhotograph className="w-5 h-5 text-indigo-600" />
+          ) : (
+            <HiOutlineDocumentText className="w-5 h-5 text-indigo-600" />
+          )}
         </div>
+
+        {/* Text */}
         <div className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-semibold text-indigo-700 truncate">{name || (expanded ? "Sembunyikan Preview" : "Lihat Attachment")}</p>
+          <p className="text-sm font-semibold text-indigo-700 truncate">
+            {name ||
+              (expanded
+                ? "Sembunyikan Preview"
+                : "Lihat Attachment")}
+          </p>
+
           <p className="text-[10px] text-indigo-400">
-            {img ? "Gambar" : pdf ? "PDF" : "File"} · klik untuk {expanded ? "tutup" : "pratinjau"}
+            {img
+              ? "Gambar"
+              : pdf
+              ? "PDF"
+              : "File"}{" "}
+            · klik untuk {expanded ? "tutup" : "pratinjau"}
           </p>
         </div>
+
+        {/* Action */}
         <div className="flex items-center gap-1.5">
           <a
             href={url}
@@ -121,20 +142,45 @@ const AttachmentPreview = ({ url, name }) => {
           >
             <HiOutlineDownload className="w-3.5 h-3.5" />
           </a>
-          <HiOutlineEye className={`w-4 h-4 text-indigo-400 ${expanded ? "opacity-40" : ""}`} />
+
+          <HiOutlineEye
+            className={`w-4 h-4 text-indigo-400 ${
+              expanded ? "opacity-40" : ""
+            }`}
+          />
         </div>
       </button>
+
+      {/* Preview */}
       {expanded && (
         <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
           {img ? (
-            <img src={url} alt="Receipt" className="w-full max-h-[400px] object-contain bg-gray-100" />
+            <img
+              src={url}
+              alt="Attachment"
+              className="w-full max-h-[400px] object-contain bg-gray-100"
+            />
           ) : pdf ? (
-            <iframe src={url} title="Receipt PDF" className="w-full h-[420px] border-0" />
+            <iframe
+              src={url}
+              title="Attachment PDF"
+              className="w-full h-[420px] border-0"
+            />
           ) : (
             <div className="flex flex-col items-center justify-center py-10 text-gray-400 gap-2">
               <HiOutlineDocumentText className="w-10 h-10" />
-              <p className="text-sm">Format tidak didukung untuk preview.</p>
-              <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">
+
+              <p className="text-sm">
+                Format tidak didukung untuk preview.
+              </p>
+
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs text-indigo-600 hover:underline"
+              >
                 Buka di tab baru
               </a>
             </div>
@@ -195,9 +241,9 @@ const ApprovalStep = ({ ar, isLast }) => {
   );
 };
 
-// ── Action Modal (internal) ───────────────────────────────────────────────────
+// ── Action Modal ──────────────────────────────────────────────────────────────
 const ActionModal = ({ reimbursement, action, onClose, onSuccess }) => {
-  const { processApproval } = useApproval();
+  const { processApproval } = useApproval({ type: "reimbursement" });
   const [notes,   setNotes]   = useState("");
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
@@ -319,15 +365,17 @@ const ActionModal = ({ reimbursement, action, onClose, onSuccess }) => {
   );
 };
 
-// ── Main Export: ReimbursementDetailModal (LENGKAP) ────────────────────────────
+// ── Main Modal ────────────────────────────────────────────────────────────────
 const ReimbursementDetailModal = ({ reimbursement, employee, onClose, onSuccess }) => {
-  const sCfg = STATUS_CFG[reimbursement.status] || STATUS_CFG.SUBMITTED;
-  const canAct = reimbursement.status === "SUBMITTED" || reimbursement.status === "PENDING";
+  const sCfg     = STATUS_CFG[reimbursement.status] || STATUS_CFG.SUBMITTED;
   const initials = reimbursement.employeeName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+
+  const { getMyPendingApproval, currentUser } = useApproval({ type: "reimbursement" });
 
   const [approvalRecords,  setApprovalRecords]  = useState([]);
   const [loadingApprovals, setLoadingApprovals] = useState(true);
   const [actionModal,      setActionModal]      = useState(null);
+  const [refreshKey,       setRefreshKey]       = useState(0);
 
   useEffect(() => {
     const h = (e) => { if (e.key === "Escape") onClose(); };
@@ -352,15 +400,38 @@ const ReimbursementDetailModal = ({ reimbursement, employee, onClose, onSuccess 
     }
   };
 
+  // Reload whenever reimbursement.id changes or refreshKey bumps
   useEffect(() => {
     loadApprovals();
-  }, [reimbursement.id]);
+  }, [reimbursement.id, refreshKey]);
 
-  const processedRecord = approvalRecords.find(
-    (ar) => ar.status === "APPROVED" || ar.status === "REJECTED"
+  // Auto-refresh every 5s while still pending so new approvers show up
+  useEffect(() => {
+    if (reimbursement.status !== "SUBMITTED" && reimbursement.status !== "PENDING") return;
+    const interval = setInterval(() => setRefreshKey((k) => k + 1), 5000);
+    return () => clearInterval(interval);
+  }, [reimbursement.status]);
+
+  const myPendingApproval = getMyPendingApproval(approvalRecords);
+
+  const canAct = (reimbursement.status === "SUBMITTED" || reimbursement.status === "PENDING")
+    && myPendingApproval !== null
+    && !loadingApprovals;
+
+  // Last processed record (APPROVED or REJECTED) — used for notes banner
+  const processedRecord = [...approvalRecords]
+    .reverse()
+    .find((ar) => ar.status === "APPROVED" || ar.status === "REJECTED");
+
+  // FIX: use Number() for loose type comparison in footer text
+  const alreadyActed = approvalRecords.some(
+    (ar) => Number(ar.approverId) === Number(currentUser?.employeeId)
+      && (ar.status === "APPROVED" || ar.status === "REJECTED")
   );
 
-  const handleActionSuccess = () => {
+  const handleActionSuccess = async () => {
+    // Reload approvals first so parent list is fresh, then close
+    await loadApprovals();
     onSuccess();
     onClose();
   };
@@ -388,7 +459,9 @@ const ReimbursementDetailModal = ({ reimbursement, employee, onClose, onSuccess 
                     </span>
                   )}
                 </div>
-                <h2 className="text-lg font-bold text-gray-900 leading-snug truncate">{reimbursement.title || "Detail Reimbursement"}</h2>
+                <h2 className="text-lg font-bold text-gray-900 leading-snug truncate">
+                  {reimbursement.title || "Detail Reimbursement"}
+                </h2>
                 <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
                   <HiOutlineClock className="w-3 h-3" /> Diajukan {fmtDate(reimbursement.createdAt)}
                 </p>
@@ -433,18 +506,14 @@ const ReimbursementDetailModal = ({ reimbursement, employee, onClose, onSuccess 
                   }`}
                 />
                 <div>
-                  <p
-                    className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${
-                      processedRecord.status === "APPROVED" ? "text-emerald-500" : "text-red-400"
-                    }`}
-                  >
+                  <p className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${
+                    processedRecord.status === "APPROVED" ? "text-emerald-500" : "text-red-400"
+                  }`}>
                     {processedRecord.status === "APPROVED" ? "Komentar Approver" : "Alasan Penolakan"}
                   </p>
-                  <p
-                    className={`text-xs leading-relaxed italic ${
-                      processedRecord.status === "APPROVED" ? "text-emerald-800" : "text-red-800"
-                    }`}
-                  >
+                  <p className={`text-xs leading-relaxed italic ${
+                    processedRecord.status === "APPROVED" ? "text-emerald-800" : "text-red-800"
+                  }`}>
                     "{processedRecord.notes}"
                   </p>
                 </div>
@@ -488,8 +557,8 @@ const ReimbursementDetailModal = ({ reimbursement, employee, onClose, onSuccess 
 
             <Section title="Detail Reimbursement">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InfoRow icon={HiOutlineTag}            label="Kategori"           value={reimbursement.category} />
-                <InfoRow icon={HiOutlineCurrencyDollar} label="Total"              value={fmt(reimbursement.total)} />
+                <InfoRow icon={HiOutlineTag}            label="Kategori"            value={reimbursement.category} />
+                <InfoRow icon={HiOutlineCurrencyDollar} label="Total"               value={fmt(reimbursement.total)} />
                 <InfoRow icon={HiOutlineCalendar}       label="Tanggal Pengeluaran" value={fmtDate(reimbursement.expenseDate)} />
               </div>
             </Section>
@@ -509,9 +578,9 @@ const ReimbursementDetailModal = ({ reimbursement, employee, onClose, onSuccess 
 
             {(reimbursement.receiptFile || reimbursement.attachmentUrl) && (
               <Section title="Kwitansi / Bukti">
-                <AttachmentPreview 
-                  url={reimbursement.receiptFile || reimbursement.attachmentUrl} 
-                  name={reimbursement.attachmentName || "Attachment"} 
+                <AttachmentPreview
+                  url={reimbursement.receiptFile || reimbursement.attachmentUrl}
+                  name={reimbursement.attachmentName || "Attachment"}
                 />
               </Section>
             )}
@@ -558,16 +627,34 @@ const ReimbursementDetailModal = ({ reimbursement, employee, onClose, onSuccess 
                 </button>
               </div>
             ) : (
-              <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${sCfg.cls}`}>
-                <span className={`w-2 h-2 rounded-full ${sCfg.dot}`} />
-                Request sudah {sCfg.label}
+              <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${
+                loadingApprovals
+                  ? "bg-gray-50 border-gray-200 text-gray-400"
+                  : myPendingApproval === null && (reimbursement.status === "SUBMITTED" || reimbursement.status === "PENDING")
+                  ? "bg-gray-50 border-gray-200 text-gray-400"
+                  : sCfg.cls
+              }`}>
+                {loadingApprovals ? (
+                  <><Spinner cls="w-3.5 h-3.5" /> Memuat…</>
+                ) : myPendingApproval === null && (reimbursement.status === "SUBMITTED" || reimbursement.status === "PENDING") ? (
+                  <>
+                    <HiOutlineClock className="w-4 h-4" />
+                    {alreadyActed
+                      ? "Anda sudah memproses request ini"
+                      : "Menunggu approval lain"}
+                  </>
+                ) : (
+                  <>
+                    <span className={`w-2 h-2 rounded-full ${sCfg.dot}`} />
+                    Request sudah {sCfg.label}
+                  </>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Action Modal */}
       {actionModal && (
         <ActionModal
           reimbursement={reimbursement}

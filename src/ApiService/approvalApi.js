@@ -1,22 +1,20 @@
 import API from "./api";
 
-
 // ============================================
 // APPROVERS MANAGEMENT (Single unified endpoint)
 // ============================================
-export const getApprovalApproversAPI = (type) => 
-  API.get(`/approval-approvers?type=${type}`);
+export const getApprovalApproversAPI = () =>
+  API.get(`/approval-approvers`);
 
-export const createApprovalApproverAPI = (data) => 
+export const createApprovalApproverAPI = (data) =>
   API.post("/approval-approvers", data);
 
-export const deleteApprovalApproverAPI = (id) => 
+export const deleteApprovalApproverAPI = (id) =>
   API.delete(`/approval-approvers/${id}`);
 
 // ============================================
-// ATTENDANCE CORRECTIONS (FIXED)
+// ATTENDANCE CORRECTIONS
 // ============================================
-
 export const createAttendanceCorrectionAPI = (data) =>
   API.post("/attendance-corrections", data);
 
@@ -29,17 +27,12 @@ export const getAttendanceApprovalsAPI = (id) =>
 export const getMyAttendanceCorrectionsAPI = (employeeId) =>
   API.get(`/attendance-corrections/my/${employeeId}`);
 
-export const approveAttendanceCorrectionAPI = (id, approverId, notes) =>
-  API.put(
-    `/attendance-corrections/${id}/approve?approverId=${approverId}`,
-    { notes } // kirim ke backend
-  );
+// approverId tidak dikirim dari frontend — backend resolve dari JWT
+export const approveAttendanceCorrectionAPI = (id, notes) =>
+  API.put(`/attendance-corrections/${id}/approve`, { notes });
 
-export const rejectAttendanceCorrectionAPI = (id, approverId, notes) =>
-  API.put(
-    `/attendance-corrections/${id}/reject?approverId=${approverId}`,
-    { notes }
-  );
+export const rejectAttendanceCorrectionAPI = (id, notes) =>
+  API.put(`/attendance-corrections/${id}/reject`, { notes });
 
 // ============================================
 // REIMBURSEMENT APPROVALS
@@ -62,18 +55,10 @@ export const updateTimeOffApprovalAPI = (approvalId, data) =>
 // ============================================
 // OVERTIME APPROVALS
 // ============================================
-// ============================================
-// OVERTIME APPROVALS (FIXED)
-// ============================================
 
-export const approveOvertimeAPI = (id, approverId, notes) =>
-  API.put(
-    `/overtimes/${id}/approve?approverId=${approverId}`,
-    { notes }
-  );
+// approverId tidak dikirim dari frontend — backend resolve dari JWT
+export const approveOvertimeAPI = (id, notes) =>
+  API.put(`/overtimes/${id}/approve`, { notes });
 
-export const rejectOvertimeAPI = (id, approverId, notes) =>
-  API.put(
-    `/overtimes/${id}/reject?approverId=${approverId}`,
-    { notes }
-  );
+export const rejectOvertimeAPI = (id, notes) =>
+  API.put(`/overtimes/${id}/reject`, { notes });

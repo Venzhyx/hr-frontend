@@ -50,7 +50,6 @@ const fmtTime = (dt) => {
   }
 };
 
-// Semua status SUBMITTED dan PENDING pakai warna kuning (amber)
 const STATUS_CFG = {
   SUBMITTED: { cls: "bg-amber-50 text-amber-700 border border-amber-200", dot: "bg-amber-400", label: "Submitted" },
   PENDING:   { cls: "bg-amber-50 text-amber-700 border border-amber-200", dot: "bg-amber-400", label: "Pending" },
@@ -64,19 +63,18 @@ const TYPE_LABELS = {
   BOTH:     "Check-in & Out",
 };
 
-// Helper untuk mendapatkan display status berdasarkan approvals
 const getDisplayStatus = (correction) => {
   if (correction.status === "REJECTED") return "REJECTED";
   if (correction.status === "APPROVED") return "APPROVED";
-  
+
   const approvals = correction.approvals || [];
   const approvedCount = approvals.filter((a) => a.status === "APPROVED").length;
-  const totalLevels = 3;
-  
-  if (approvedCount === 0) return "SUBMITTED";
+  const totalLevels = approvals.length;
+
+  if (totalLevels === 0 || approvedCount === 0) return "SUBMITTED";
   if (approvedCount > 0 && approvedCount < totalLevels) return "PENDING";
   if (approvedCount === totalLevels) return "APPROVED";
-  
+
   return correction.status || "SUBMITTED";
 };
 
@@ -189,7 +187,7 @@ const ApprovalStep = ({ ar, isLast, approverMap }) => {
   );
 };
 
-// ── Action Modal ───────────────────────────────────────────────────
+// ── Action Modal ──────────────────────────────────────────────────────────────
 const ActionModal = ({ correction, action, onClose, onSuccess }) => {
   const { handleApprove, handleReject } = useAttendanceCorrection({ role: "admin" });
   const [notes,   setNotes]   = useState("");
@@ -314,47 +312,47 @@ const ActionModal = ({ correction, action, onClose, onSuccess }) => {
   );
 };
 
-// ── Main Export: AttendanceCorrectionDetailModal ──────────────────────────────
+// ── Main Export ───────────────────────────────────────────────────────────────
 const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }) => {
   const displayStatus = getDisplayStatus(correction);
   const sCfg = STATUS_CFG[displayStatus] || STATUS_CFG.SUBMITTED;
-  
-  // Bisa approve jika SUBMITTED atau PENDING
-  const canAct = displayStatus === "SUBMITTED" || displayStatus === "PENDING";
-  
-  const initials = correction.employeeName
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase() || "?";
 
-  const [approvalRecords,  setApprovalRecords]  = useState([]);
-  const [loadingApprovals, setLoadingApprovals] = useState(true);
-  const [actionModal,      setActionModal]      = useState(null);
-
-  const { approvers } = useApproval({ type: "attendance" });
+  const { approvers, currentUser, isMyTurn } = useApproval({ type: "attendance" });
 
   const approverMap = Object.fromEntries(
     (approvers || []).map((a) => [String(a.employeeId), a.employeeName])
   );
 
-  const loadApprovals = () => {
-    setLoadingApprovals(true);
-    try {
-      const list = [...(correction?.approvals || [])];
-      list.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
-      setApprovalRecords(list);
-    } catch {
-      setApprovalRecords([]);
-    } finally {
-      setLoadingApprovals(false);
-    }
-  };
+  const approvalRecords = [...(correction?.approvals || [])].sort(
+    (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
+  );
 
-  useEffect(() => {
-    loadApprovals();
-  }, [correction.id, correction?.approvals]);
+  const isRequestPending = displayStatus === "SUBMITTED" || displayStatus === "PENDING";
+  const myTurn = isMyTurn(approvalRecords);
+  const canAct = isRequestPending && myTurn;
+  const showNotMyTurn = isRequestPending && !myTurn;
+
+  // FIX 3: alreadyActed — untuk pesan footer yang lebih akurat
+  const alreadyActed = approvalRecords.some(
+    (ar) =>
+      Number(ar.approverId) === Number(currentUser?.employeeId) &&
+      (ar.status === "APPROVED" || ar.status === "REJECTED")
+  );
+
+  const initials =
+    correction.employeeName
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?";
+
+  const [actionModal, setActionModal] = useState(null);
+
+  // FIX 2: pakai .reverse().find() agar ambil record terakhir yang processed
+  const processedRecord = [...approvalRecords]
+    .reverse()
+    .find((ar) => ar.status === "APPROVED" || ar.status === "REJECTED");
 
   useEffect(() => {
     const h = (e) => { if (e.key === "Escape") onClose(); };
@@ -365,10 +363,6 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
       document.body.style.overflow = "";
     };
   }, [onClose]);
-
-  const processedRecord = approvalRecords.find(
-    (ar) => ar.status === "APPROVED" || ar.status === "REJECTED"
-  );
 
   const handleActionSuccess = () => {
     onSuccess();
@@ -388,7 +382,6 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
           {/* Header */}
           <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4 sm:hidden" />
-
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -399,7 +392,9 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
                     </span>
                   )}
                 </div>
-                <h2 className="text-lg font-bold text-gray-900 leading-snug">Detail Attendance Correction</h2>
+                <h2 className="text-lg font-bold text-gray-900 leading-snug">
+                  Detail Attendance Correction
+                </h2>
                 <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
                   <HiOutlineClock className="w-3 h-3" /> Diajukan {fmtDateShort(correction.createdAt)}
                 </p>
@@ -415,10 +410,12 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
             {/* Date hero */}
             <div className="mt-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl px-5 py-4 flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">Tanggal Koreksi</p>
+                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">
+                  Tanggal Koreksi
+                </p>
                 <p className="text-2xl font-bold text-indigo-700">{fmtDateShort(correction.date)}</p>
                 <p className="text-xs text-indigo-400 mt-1">
-                  {correction.newCheckIn  && <>Check-in: {fmtTime(correction.newCheckIn)}</>}
+                  {correction.newCheckIn && <>Check-in: {fmtTime(correction.newCheckIn)}</>}
                   {correction.newCheckIn && correction.newCheckOut && <span className="mx-1">·</span>}
                   {correction.newCheckOut && <>Check-out: {fmtTime(correction.newCheckOut)}</>}
                 </p>
@@ -429,12 +426,7 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
             </div>
 
             {/* Notes banner */}
-            {loadingApprovals ? (
-              <div className="mt-3 flex items-center gap-2 px-1 py-1">
-                <div className="w-4 h-4 rounded-full border-2 border-indigo-300 border-t-indigo-600 animate-spin flex-shrink-0" />
-                <p className="text-xs text-gray-400">Memuat catatan approval…</p>
-              </div>
-            ) : processedRecord?.notes ? (
+            {processedRecord?.notes ? (
               <div
                 className={`mt-3 rounded-xl px-4 py-3 flex items-start gap-2 border ${
                   processedRecord.status === "APPROVED"
@@ -503,8 +495,8 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
             {/* Correction detail */}
             <Section title="Detail Koreksi">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InfoRow icon={HiOutlineCalendar} label="Tanggal"          value={fmtDateShort(correction.date)} />
-                <InfoRow icon={HiOutlineClock}    label="Tipe Koreksi"     value={TYPE_LABELS[correction.type] || correction.type} />
+                <InfoRow icon={HiOutlineCalendar} label="Tanggal"      value={fmtDateShort(correction.date)} />
+                <InfoRow icon={HiOutlineClock}    label="Tipe Koreksi" value={TYPE_LABELS[correction.type] || correction.type} />
                 {correction.oldCheckIn  && <InfoRow icon={HiOutlineClock}  label="Check-in Lama"  value={fmtTime(correction.oldCheckIn)} />}
                 {correction.newCheckIn  && <InfoRow icon={HiOutlineCheck}  label="Check-in Baru"  value={fmtDateTime(correction.newCheckIn)} />}
                 {correction.oldCheckOut && <InfoRow icon={HiOutlineClock}  label="Check-out Lama" value={fmtTime(correction.oldCheckOut)} />}
@@ -512,7 +504,7 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
               </div>
             </Section>
 
-            {/* Description */}
+            {/* Alasan */}
             {correction.description && (
               <Section title="Alasan Pengajuan">
                 <div className="flex items-start gap-3">
@@ -530,12 +522,7 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
 
             {/* Approval history */}
             <Section title="Riwayat Approval">
-              {loadingApprovals ? (
-                <div className="flex items-center gap-3 py-2">
-                  <div className="w-5 h-5 rounded-full border-2 border-indigo-300 border-t-indigo-600 animate-spin" />
-                  <p className="text-sm text-gray-400">Memuat riwayat approval…</p>
-                </div>
-              ) : approvalRecords.length === 0 ? (
+              {approvalRecords.length === 0 ? (
                 <div className="flex flex-col items-center py-6 text-center">
                   <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
                     <HiOutlineDocumentText className="w-6 h-6 text-gray-300" />
@@ -575,10 +562,17 @@ const AttendanceCorrectionDetailModal = ({ correction, emp, onClose, onSuccess }
                   <HiOutlineCheck className="w-4 h-4" /> Approve
                 </button>
               </div>
+            ) : showNotMyTurn ? (
+              // FIX 3: pesan berbeda kalau user sudah pernah act vs belum giliran
+              <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border bg-amber-50 border-amber-200 text-amber-700">
+                <HiOutlineClock className="w-4 h-4" />
+                {alreadyActed
+                  ? "Anda sudah memproses request ini"
+                  : "Menunggu approval dari approver lain"}
+              </div>
             ) : (
-              <div
-                className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${sCfg.cls}`}
-              >
+              // Sudah APPROVED atau REJECTED
+              <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${sCfg.cls}`}>
                 <span className={`w-2 h-2 rounded-full ${sCfg.dot}`} />
                 Request sudah {sCfg.label}
               </div>

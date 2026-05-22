@@ -4,7 +4,7 @@ import {
   HiOutlineSearch, HiOutlineChevronDown, HiOutlineRefresh,
   HiOutlineChevronLeft, HiOutlineChevronRight, HiOutlineInformationCircle,
   HiOutlineDotsVertical, HiOutlineClipboardList, HiOutlineClock,
-  HiOutlineFingerPrint, HiOutlineLogout, HiOutlineChip,
+  HiOutlineFingerPrint, HiOutlineLogout, HiOutlineChip, HiOutlineCheckCircle,
 } from "react-icons/hi";
 import { useNavigate } from "react-router-dom";
 import { useAttendance }         from "../../redux/hooks/useAttendance";
@@ -254,7 +254,7 @@ const ActivityHeatmap = ({ attendances, selectedYear, setSelectedYear, available
     while (cursor <= endDate) {
       const week = [];
       for (let d = 0; d < 7; d++) {
-        const dateStr = cursor.toISOString().split("T")[0];
+        const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,"0")}-${String(cursor.getDate()).padStart(2,"0")}`;
         const inRange = cursor.getFullYear() === selectedYear;
         week.push({ dateStr, status: inRange ? (statusMap[dateStr] || null) : null, inRange });
         cursor.setDate(cursor.getDate() + 1);
@@ -554,15 +554,12 @@ const AttendanceDashboard = () => {
   const {
     attendances, loading, error, employees, loadingEmployees,
     loadEmployees, loadAttendance, dismissError, resetAttendance,
+    // ── Ambil langsung dari hook, sudah timezone-safe ──
+    hasCheckedInToday, hasCheckedOutToday,
   } = useAttendance();
 
   const { overtimes, fetchOvertimes }   = useOvertime({ role: "admin" });
   const { settings, fetchSettings }     = useAttendanceSettings();
-
-  // ── FIX: hanya pakai satu sumber employee ─────────────────────────────────
-  // useAttendance sudah menyediakan `employees` via loadEmployees().
-  // useEmployee dipakai HANYA untuk empMap (foto & detail lengkap).
-  // Pastikan keduanya tidak hit endpoint yang sama.
   const { employees: allEmployees, fetchEmployees } = useEmployee();
 
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -571,25 +568,20 @@ const AttendanceDashboard = () => {
   const [showCheckIn,      setShowCheckIn]      = useState(false);
   const [showCheckOut,     setShowCheckOut]     = useState(false);
 
-  // ── Init: satu effect, satu kali, tidak ada redundansi ───────────────────
   useEffect(() => {
     fetchSettings();
-    loadEmployees();   // dropdown attendance
-    fetchEmployees();  // foto / detail lengkap
+    loadEmployees();
+    fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Fetch data saat employee berubah ─────────────────────────────────────
-  // loadAttendance sudah punya dedup internal (cek lastFetchedEmployeeId di hook),
-  // jadi tidak perlu useRef guard di sini.
   useEffect(() => {
     if (!selectedEmployee?.id) {
       resetAttendance();
       return;
     }
-
     setCalPage(0);
-    loadAttendance(selectedEmployee.id);   // skip otomatis jika ID sama
+    loadAttendance(selectedEmployee.id);
     fetchOvertimes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEmployee?.id]);
@@ -657,8 +649,15 @@ const AttendanceDashboard = () => {
     return [...new Set(years)].sort((a, b) => b - a);
   }, [attendances]);
 
-  // ── Refresh handler (manual) ──────────────────────────────────────────────
-  // force:true agar dedup di hook dilewati saat user klik Refresh manual
+  // ── Logika tombol (satu sumber kebenaran) ─────────────────────────────────
+  // showCheckInBtn  : belum checkin hari ini → tampilkan tombol Absen, APAPUN jamnya
+  // showCheckOutBtn : sudah checkin + sudah jam pulang + belum checkout
+  // done            : sudah checkin + sudah checkout → tampilkan info selesai
+  const showCheckInBtn  = isOnlineMode && !hasCheckedInToday;
+  const showCheckOutBtn = isOnlineMode && hasCheckedInToday && isCheckoutTime && !hasCheckedOutToday;
+  const attendanceDone  = isOnlineMode && hasCheckedInToday && hasCheckedOutToday;
+
+  // ── Refresh handler ───────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
     if (!selectedEmployee?.id) return;
     loadAttendance(selectedEmployee.id, { force: true });
@@ -702,7 +701,6 @@ const AttendanceDashboard = () => {
             />
 
             <div className="flex items-center gap-3">
-              {/* ── FIX: pakai handleRefresh bukan inline, hindari closure stale ── */}
               <button
                 onClick={handleRefresh}
                 disabled={!selectedEmployee}
@@ -712,8 +710,9 @@ const AttendanceDashboard = () => {
                 <HiOutlineRefresh className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
 
+              {/* ── Tombol Check-in / Check-out / Selesai / Mode Mesin ── */}
               {isOnlineMode ? (
-                isCheckoutTime ? (
+                showCheckOutBtn ? (
                   <button
                     onClick={() => { if (selectedEmployee?.id) setShowCheckOut(true); }}
                     disabled={!selectedEmployee}
@@ -722,7 +721,7 @@ const AttendanceDashboard = () => {
                     <HiOutlineLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Check-out</span>
                   </button>
-                ) : (
+                ) : showCheckInBtn ? (
                   <button
                     onClick={() => { if (selectedEmployee?.id) setShowCheckIn(true); }}
                     disabled={!selectedEmployee}
@@ -731,7 +730,12 @@ const AttendanceDashboard = () => {
                     <HiOutlineFingerPrint className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Absen Hari Ini</span>
                   </button>
-                )
+                ) : attendanceDone ? (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-medium flex-shrink-0">
+                    <HiOutlineCheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <span>Absensi selesai</span>
+                  </div>
+                ) : null
               ) : (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium flex-shrink-0">
                   <HiOutlineChip className="w-4 h-4 text-amber-500 flex-shrink-0" />
@@ -874,7 +878,7 @@ const AttendanceDashboard = () => {
         employee={fullEmployee}
         onSuccess={() => {
           setShowCheckIn(false);
-          if (selectedEmployee?.id) loadAttendance(selectedEmployee.id);
+          if (selectedEmployee?.id) loadAttendance(selectedEmployee.id, { force: true });
         }}
       />
       <CheckOutModal
@@ -883,7 +887,7 @@ const AttendanceDashboard = () => {
         employee={fullEmployee}
         onSuccess={() => {
           setShowCheckOut(false);
-          if (selectedEmployee?.id) loadAttendance(selectedEmployee.id);
+          if (selectedEmployee?.id) loadAttendance(selectedEmployee.id, { force: true });
         }}
       />
     </div>

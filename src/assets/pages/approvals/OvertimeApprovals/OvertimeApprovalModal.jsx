@@ -58,7 +58,6 @@ const fmtHours = (h) => {
   return `${hours} jam ${minutes} mnt`;
 };
 
-// Semua status SUBMITTED dan PENDING pakai warna kuning (amber)
 const STATUS_CFG = {
   SUBMITTED: { cls: "bg-amber-50 text-amber-700 border border-amber-200", dot: "bg-amber-400", label: "Submitted" },
   PENDING:   { cls: "bg-amber-50 text-amber-700 border border-amber-200", dot: "bg-amber-400", label: "Pending" },
@@ -71,19 +70,18 @@ const TYPE_LABELS = {
   HOLIDAY: "Hari Libur",
 };
 
-// Helper untuk mendapatkan display status berdasarkan approvals
 const getDisplayStatus = (overtime) => {
   if (overtime.status === "REJECTED") return "REJECTED";
   if (overtime.status === "APPROVED") return "APPROVED";
-  
+
   const approvals = overtime.approvals || [];
   const approvedCount = approvals.filter((a) => a.status === "APPROVED").length;
   const totalLevels = 3;
-  
+
   if (approvedCount === 0) return "SUBMITTED";
   if (approvedCount > 0 && approvedCount < totalLevels) return "PENDING";
   if (approvedCount === totalLevels) return "APPROVED";
-  
+
   return overtime.status || "SUBMITTED";
 };
 
@@ -204,16 +202,14 @@ const ActionModal = ({ overtime, action, onClose, onSuccess }) => {
   const [error, setError] = useState(null);
 
   const isApprove = action === "APPROVED";
-  const btnCls = isApprove ? "bg-green-600 hover:bg-green-700" : "bg-red-500 hover:bg-red-600";
-  const iconBgCls = isApprove ? "bg-green-100" : "bg-red-100";
-  const iconCls = isApprove ? "text-green-600" : "text-red-500";
-  const ringCls = isApprove ? "focus:ring-green-400 border-green-300" : "focus:ring-red-400 border-red-300";
-  const wrapCls = isApprove ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200";
+  const btnCls    = isApprove ? "bg-green-600 hover:bg-green-700"       : "bg-red-500 hover:bg-red-600";
+  const iconBgCls = isApprove ? "bg-green-100"                          : "bg-red-100";
+  const iconCls   = isApprove ? "text-green-600"                        : "text-red-500";
+  const ringCls   = isApprove ? "focus:ring-green-400 border-green-300" : "focus:ring-red-400 border-red-300";
+  const wrapCls   = isApprove ? "bg-green-50 border-green-200"          : "bg-red-50 border-red-200";
 
   useEffect(() => {
-    const h = (e) => {
-      if (e.key === "Escape") onClose();
-    };
+    const h = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", h);
     return () => document.removeEventListener("keydown", h);
   }, [onClose]);
@@ -223,7 +219,7 @@ const ActionModal = ({ overtime, action, onClose, onSuccess }) => {
     setError(null);
     try {
       if (isApprove) await handleApprove(overtime.id, notes);
-      else await handleReject(overtime.id, notes);
+      else           await handleReject(overtime.id, notes);
       onSuccess();
       onClose();
     } catch (err) {
@@ -236,15 +232,15 @@ const ActionModal = ({ overtime, action, onClose, onSuccess }) => {
   return (
     <div
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className={`px-6 py-5 border-b ${wrapCls}`}>
           <div className="flex items-start gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBgCls}`}>
-              {isApprove ? <HiOutlineCheck className={`w-5 h-5 ${iconCls}`} /> : <HiOutlineX className={`w-5 h-5 ${iconCls}`} />}
+              {isApprove
+                ? <HiOutlineCheck className={`w-5 h-5 ${iconCls}`} />
+                : <HiOutlineX     className={`w-5 h-5 ${iconCls}`} />}
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-bold text-gray-800">
@@ -272,7 +268,9 @@ const ActionModal = ({ overtime, action, onClose, onSuccess }) => {
             <HiOutlineAnnotation className="w-4 h-4 text-gray-400" />
             <label className="text-sm font-medium text-gray-700">
               Komentar
-              {!isApprove ? <span className="text-red-500 ml-0.5">*</span> : <span className="text-gray-400 font-normal ml-1">(opsional)</span>}
+              {!isApprove
+                ? <span className="text-red-500 ml-0.5">*</span>
+                : <span className="text-gray-400 font-normal ml-1">(opsional)</span>}
             </label>
           </div>
           <textarea
@@ -287,7 +285,9 @@ const ActionModal = ({ overtime, action, onClose, onSuccess }) => {
             }
             className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 transition-colors resize-none disabled:opacity-60 ${ringCls}`}
           />
-          {!isApprove && !notes.trim() && <p className="mt-1.5 text-xs text-red-500">Alasan penolakan wajib diisi.</p>}
+          {!isApprove && !notes.trim() && (
+            <p className="mt-1.5 text-xs text-red-500">Alasan penolakan wajib diisi.</p>
+          )}
         </div>
 
         <div className="px-6 pb-6 flex gap-3">
@@ -306,17 +306,11 @@ const ActionModal = ({ overtime, action, onClose, onSuccess }) => {
             className={`flex-1 px-4 py-2.5 text-white rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${btnCls}`}
           >
             {loading ? (
-              <>
-                <Spinner /> Memproses…
-              </>
+              <><Spinner /> Memproses…</>
             ) : isApprove ? (
-              <>
-                <HiOutlineCheck className="w-4 h-4" /> Konfirmasi Approve
-              </>
+              <><HiOutlineCheck className="w-4 h-4" /> Konfirmasi Approve</>
             ) : (
-              <>
-                <HiOutlineX className="w-4 h-4" /> Konfirmasi Reject
-              </>
+              <><HiOutlineX className="w-4 h-4" /> Konfirmasi Reject</>
             )}
           </button>
         </div>
@@ -329,17 +323,17 @@ const ActionModal = ({ overtime, action, onClose, onSuccess }) => {
 const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
   const displayStatus = getDisplayStatus(overtime);
   const sCfg = STATUS_CFG[displayStatus] || STATUS_CFG.SUBMITTED;
-  const canAct = displayStatus === "SUBMITTED" || displayStatus === "PENDING";
-  
-  const initials = overtime.employeeName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+
+  // FIX 1: ambil isMyTurn dari useApproval
+  const { approvers, currentUser, isMyTurn } = useApproval({ type: "overtime" });
+
+  const approverMap = Object.fromEntries(
+    (approvers || []).map((a) => [String(a.employeeId), a.employeeName])
+  );
 
   const [approvalRecords, setApprovalRecords] = useState([]);
   const [loadingApprovals, setLoadingApprovals] = useState(true);
   const [actionModal, setActionModal] = useState(null);
-
-  const { approvers } = useApproval({ type: "overtime" });
-
-  const approverMap = Object.fromEntries((approvers || []).map((a) => [String(a.employeeId), a.employeeName]));
 
   const loadApprovals = () => {
     setLoadingApprovals(true);
@@ -359,9 +353,7 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
   }, [overtime.id, overtime?.approvals]);
 
   useEffect(() => {
-    const h = (e) => {
-      if (e.key === "Escape") onClose();
-    };
+    const h = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", h);
     document.body.style.overflow = "hidden";
     return () => {
@@ -370,7 +362,19 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
     };
   }, [onClose]);
 
-  const processedRecord = approvalRecords.find((ar) => ar.status === "APPROVED" || ar.status === "REJECTED");
+  // FIX 1: canAct sekarang cek isMyTurn + showNotMyTurn untuk footer state baru
+  const isRequestPending = displayStatus === "SUBMITTED" || displayStatus === "PENDING";
+  const myTurn = isMyTurn(approvalRecords);
+  const canAct = isRequestPending && myTurn;
+  const showNotMyTurn = isRequestPending && !myTurn;
+
+  const initials =
+    overtime.employeeName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+
+  // FIX 3: pakai .reverse().find() agar ambil record terakhir yang processed
+  const processedRecord = [...approvalRecords]
+    .reverse()
+    .find((ar) => ar.status === "APPROVED" || ar.status === "REJECTED");
 
   const handleActionSuccess = () => {
     onSuccess();
@@ -381,9 +385,7 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
     <>
       <div
         className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
-        }}
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         <div
           className="bg-white w-full sm:max-w-xl rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden"
@@ -483,7 +485,9 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-900 truncate">{overtime.employeeName}</p>
-                  {overtime.employeeCode && <p className="text-xs text-gray-500 mt-0.5">NIK: {overtime.employeeCode}</p>}
+                  {overtime.employeeCode && (
+                    <p className="text-xs text-gray-500 mt-0.5">NIK: {overtime.employeeCode}</p>
+                  )}
                   {(emp?.jobTitle || emp?.position) && (
                     <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                       <HiOutlineBriefcase className="w-3 h-3" /> {emp.jobTitle || emp.position}
@@ -501,11 +505,11 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
             {/* Overtime detail */}
             <Section title="Detail Lembur">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InfoRow icon={HiOutlineCalendar} label="Tanggal" value={fmtDateShort(overtime.date)} />
-                <InfoRow icon={HiOutlineClock} label="Tipe" value={TYPE_LABELS[overtime.type] || overtime.type} />
-                <InfoRow icon={HiOutlineClock} label="Waktu Mulai" value={fmtDateTime(overtime.startTime)} />
-                <InfoRow icon={HiOutlineClock} label="Waktu Selesai" value={fmtDateTime(overtime.endTime)} />
-                <InfoRow icon={HiOutlineClock} label="Total Jam" value={fmtHours(overtime.totalHours)} />
+                <InfoRow icon={HiOutlineCalendar} label="Tanggal"        value={fmtDateShort(overtime.date)} />
+                <InfoRow icon={HiOutlineClock}    label="Tipe"           value={TYPE_LABELS[overtime.type] || overtime.type} />
+                <InfoRow icon={HiOutlineClock}    label="Waktu Mulai"    value={fmtDateTime(overtime.startTime)} />
+                <InfoRow icon={HiOutlineClock}    label="Waktu Selesai"  value={fmtDateTime(overtime.endTime)} />
+                <InfoRow icon={HiOutlineClock}    label="Total Jam"      value={fmtHours(overtime.totalHours)} />
               </div>
             </Section>
 
@@ -517,7 +521,9 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
                     <HiOutlineAnnotation className="w-4 h-4 text-amber-500" />
                   </div>
                   <div className="flex-1 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-                    <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{overtime.description}</p>
+                    <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">
+                      {overtime.description}
+                    </p>
                   </div>
                 </div>
               </Section>
@@ -541,7 +547,12 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
               ) : (
                 <div className="pt-1">
                   {approvalRecords.map((ar, idx) => (
-                    <ApprovalStep key={ar.id ?? idx} ar={ar} approverMap={approverMap} isLast={idx === approvalRecords.length - 1} />
+                    <ApprovalStep
+                      key={ar.id ?? idx}
+                      ar={ar}
+                      approverMap={approverMap}
+                      isLast={idx === approvalRecords.length - 1}
+                    />
                   ))}
                 </div>
               )}
@@ -565,7 +576,14 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
                   <HiOutlineCheck className="w-4 h-4" /> Approve
                 </button>
               </div>
+            ) : showNotMyTurn ? (
+              // FIX 2: state baru — pending tapi bukan giliran user ini
+              <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border bg-amber-50 border-amber-200 text-amber-700">
+                <HiOutlineClock className="w-4 h-4" />
+                Menunggu approval dari approver lain
+              </div>
             ) : (
+              // Sudah APPROVED atau REJECTED
               <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${sCfg.cls}`}>
                 <span className={`w-2 h-2 rounded-full ${sCfg.dot}`} />
                 Request sudah {sCfg.label}
@@ -576,7 +594,12 @@ const OvertimeDetailModal = ({ overtime, emp, onClose, onSuccess }) => {
       </div>
 
       {actionModal && (
-        <ActionModal overtime={overtime} action={actionModal} onClose={() => setActionModal(null)} onSuccess={handleActionSuccess} />
+        <ActionModal
+          overtime={overtime}
+          action={actionModal}
+          onClose={() => setActionModal(null)}
+          onSuccess={handleActionSuccess}
+        />
       )}
     </>
   );

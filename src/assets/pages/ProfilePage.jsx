@@ -31,13 +31,46 @@ const getLoggedInUser = () => {
   return null;
 };
 
-const generatePassword = () => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  let pwd = "";
-  for (let i = 0; i < 6; i++) {
-    pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+/**
+ * Hapus semua data sesi dari storage.
+ * Sesuaikan key-nya dengan yang dipakai di login.
+ */
+const clearSession = () => {
+  localStorage.removeItem("user");
+  localStorage.removeItem("hr_user");
+  localStorage.removeItem("token");
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  sessionStorage.clear();
+};
+
+/**
+ * Copy to clipboard — modern API dengan fallback execCommand untuk HTTP / older browser.
+ */
+const copyToClipboard = (text) => {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text)
+      .then(() => true)
+      .catch(() => fallbackCopy(text));
   }
-  return pwd;
+  return Promise.resolve(fallbackCopy(text));
+};
+
+const fallbackCopy = (text) => {
+  try {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.setAttribute("readonly", "");
+    el.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(el);
+    return ok;
+  } catch (_) {
+    return false;
+  }
 };
 
 const fmtDate = (d) =>
@@ -61,11 +94,7 @@ const Toast = ({ toast, onClose }) => {
       style={{ minWidth: 320 }}
     >
       <div className={`mr-3 flex-shrink-0 ${ok ? "text-green-500" : "text-red-500"}`}>
-        {ok ? (
-          <HiOutlineCheckCircle className="w-6 h-6" />
-        ) : (
-          <HiOutlineXCircle className="w-6 h-6" />
-        )}
+        {ok ? <HiOutlineCheckCircle className="w-6 h-6" /> : <HiOutlineXCircle className="w-6 h-6" />}
       </div>
       <p className={`flex-1 mr-2 text-sm font-medium ${ok ? "text-green-800" : "text-red-800"}`}>
         {toast.message}
@@ -103,7 +132,7 @@ const ProfilePage = () => {
   const [loading,  setLoading]  = useState(true);
   const [toast,    setToast]    = useState({ show: false, message: "", type: "success" });
 
-  // Reset password modal
+  // Reset password modal state
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetting,      setResetting]      = useState(false);
   const [newPassword,    setNewPassword]    = useState("");
@@ -114,7 +143,7 @@ const ProfilePage = () => {
   const fetchProfile = useCallback(async () => {
     if (!selfEmployeeId) { setLoading(false); return; }
     try {
-      const res  = await API.get(`/employees/${selfEmployeeId}`);
+      const res = await API.get(`/employees/${selfEmployeeId}`);
       setEmployee(res.data?.data ?? res.data);
     } catch (_) {
       showToast("Gagal memuat data profil", "error");
@@ -135,26 +164,29 @@ const ProfilePage = () => {
   const showToast = (message, type = "success") =>
     setToast({ show: true, message, type });
 
-  // ── Navigasi ke Edit Employee, tapi dikunci ke akun sendiri ──────────────
+  // ── Navigasi ke Edit Employee ─────────────────────────────────────────────
   const goToEdit = () => {
     if (!selfEmployeeId) return;
-    // selfOnly: true → EditEmployee akan tahu ini dari ProfilePage
-    // sehingga field sensitif dikunci & back/save kembali ke /profile
     navigate(`/employees/edit/${selfEmployeeId}`, {
       state: { selfOnly: true, from: "/profile" },
     });
   };
 
   // ── Reset password ────────────────────────────────────────────────────────
+  // BE yang generate password — FE tidak perlu generate sendiri lagi
   const handleResetPassword = async () => {
     setResetting(true);
-    const pwd = generatePassword();
     try {
-      await API.post(`/auth/reset-password`, {
-        userId:      loggedInUser?.id ?? loggedInUser?.userId,
-        newPassword: pwd,
-      });
-      setNewPassword(pwd);
+      // POST /auth/reset-password
+      // userId diambil dari JWT di BE, tidak perlu kirim body apa-apa
+      const res = await API.post("/auth/reset-password");
+      // BE membungkus dengan ApiResponse<PasswordResetResponse>
+      // → struktur: { success, message, data: { success, message, newPassword } }
+      const plain = res.data?.data?.newPassword ?? res.data?.newPassword;
+
+      if (!plain) throw new Error("Respons tidak valid dari server");
+
+      setNewPassword(plain);
       setResetDone(true);
     } catch (err) {
       showToast(err?.response?.data?.message || "Gagal reset password", "error");
@@ -165,13 +197,30 @@ const ProfilePage = () => {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(newPassword).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    copyToClipboard(newPassword).then((ok) => {
+      if (ok) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     });
   };
 
+  /**
+   * Selesai: salin sudah → hapus sesi → redirect ke /login
+   * Modal tidak bisa di-close dengan klik backdrop setelah reset berhasil
+   * sampai user klik tombol Selesai — agar password sempat disalin.
+   */
+  const handleDone = () => {
+    clearSession();
+    // Pakai window.location.href bukan navigate() agar full page reload —
+    // semua in-memory React state (termasuk PrivateRoute auth check) di-reset.
+    // Kalau pakai navigate(), PrivateRoute masih baca state lama & redirect balik ke dashboard.
+    window.location.href = "/login";
+  };
+
   const closeResetModal = () => {
+    // Kalau reset sudah selesai, paksa lewat handleDone agar sesi dihapus
+    if (resetDone) { handleDone(); return; }
     setShowResetModal(false);
     setResetDone(false);
     setNewPassword("");
@@ -218,7 +267,6 @@ const ProfilePage = () => {
         <div className="absolute bottom-0 right-20 w-20 h-20 bg-white/5 rounded-full" />
 
         <div className="relative flex items-center gap-5">
-          {/* Avatar */}
           <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white/30 shadow-lg bg-white/20 flex-shrink-0">
             {employee?.photo ? (
               <img src={employee.photo} alt={fullName} className="w-full h-full object-cover" />
@@ -229,7 +277,6 @@ const ProfilePage = () => {
             )}
           </div>
 
-          {/* Info */}
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-bold truncate">{fullName}</h2>
             <p className="text-indigo-200 text-sm mt-0.5">{jobTitle}</p>
@@ -250,7 +297,6 @@ const ProfilePage = () => {
             </div>
           </div>
 
-          {/* Edit Profil → pindah ke halaman EditEmployee */}
           <div className="flex-shrink-0">
             <button
               onClick={goToEdit}
@@ -265,8 +311,6 @@ const ProfilePage = () => {
 
       {/* ── Main grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* Work Info */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-50">
             <HiOutlineOfficeBuilding className="text-indigo-400 w-4 h-4" />
@@ -279,7 +323,6 @@ const ProfilePage = () => {
           <InfoRow icon={HiOutlineIdentification} label="Tipe Karyawan" value={employee?.employeeType} />
         </div>
 
-        {/* Private Contact */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-50">
             <HiOutlineUser className="text-indigo-400 w-4 h-4" />
@@ -290,7 +333,6 @@ const ProfilePage = () => {
           <InfoRow icon={HiOutlineHome}  label="Alamat"          value={employee?.privateAddress} />
         </div>
 
-        {/* Account Info */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:col-span-2">
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-50">
             <HiOutlineLockClosed className="text-indigo-400 w-4 h-4" />
@@ -312,19 +354,20 @@ const ProfilePage = () => {
             </button>
           </div>
         </div>
-
       </div>
 
       {/* ══ RESET PASSWORD MODAL ══════════════════════════════════════════════ */}
       {showResetModal && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          // backdrop klik hanya aktif sebelum reset selesai
           onClick={!resetDone ? closeResetModal : undefined}
         >
           <div
             className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header */}
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
@@ -332,13 +375,18 @@ const ProfilePage = () => {
                 </div>
                 <h3 className="font-semibold text-gray-800">Reset Password</h3>
               </div>
-              <button onClick={closeResetModal} className="text-gray-400 hover:text-gray-600 transition-colors">
-                <HiOutlineX className="w-5 h-5" />
-              </button>
+              {/* X hanya tampil sebelum reset selesai */}
+              {!resetDone && (
+                <button onClick={closeResetModal} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <HiOutlineX className="w-5 h-5" />
+                </button>
+              )}
             </div>
 
+            {/* Body */}
             <div className="p-6">
               {!resetDone ? (
+                /* ── Step 1: Konfirmasi ── */
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
@@ -350,17 +398,19 @@ const ProfilePage = () => {
                       </p>
                       <p className="text-sm text-gray-500 mt-1">
                         Password lama akan langsung tidak berlaku. Sistem akan menghasilkan
-                        password sementara 6 karakter yang bisa Anda salin dan gunakan untuk login.
+                        password sementara 6 karakter. Setelah menekan <strong>Selesai</strong> Anda
+                        akan otomatis logout dan perlu login ulang dengan password baru.
                       </p>
                     </div>
                   </div>
                   <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
                     <p className="text-xs text-amber-700 font-medium">
-                      Setelah reset, gunakan password sementara untuk login, lalu segera ubah di pengaturan akun Anda.
+                      Pastikan Anda menyalin password sebelum menutup modal ini.
                     </p>
                   </div>
                 </div>
               ) : (
+                /* ── Step 2: Tampilkan password baru ── */
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
@@ -368,19 +418,23 @@ const ProfilePage = () => {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Password berhasil direset!</p>
-                      <p className="text-xs text-gray-500 mt-0.5">Salin password sementara di bawah ini</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Salin password di bawah, lalu klik <strong>Selesai</strong> untuk login ulang.
+                      </p>
                     </div>
                   </div>
+
+                  {/* Password display + copy */}
                   <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Password Sementara</p>
-                      <p className="text-2xl font-mono font-bold tracking-[0.3em] text-gray-800">
+                      <p className="text-2xl font-mono font-bold tracking-[0.3em] text-gray-800 select-all">
                         {newPassword}
                       </p>
                     </div>
                     <button
                       onClick={handleCopy}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${
                         copied
                           ? "bg-green-100 text-green-700 border border-green-200"
                           : "bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100"
@@ -393,15 +447,17 @@ const ProfilePage = () => {
                       )}
                     </button>
                   </div>
+
                   <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
                     <p className="text-xs text-blue-700">
-                      Gunakan password ini untuk login berikutnya. Segera ganti dengan password baru setelah berhasil masuk.
+                      Klik <strong>Selesai</strong> — Anda akan otomatis logout. Gunakan password di atas untuk login kembali.
                     </p>
                   </div>
                 </div>
               )}
             </div>
 
+            {/* Footer */}
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
               {!resetDone ? (
                 <>
@@ -424,11 +480,13 @@ const ProfilePage = () => {
                   </button>
                 </>
               ) : (
+                /* Selesai → logout → /login */
                 <button
-                  onClick={closeResetModal}
-                  className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                  onClick={handleDone}
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
                 >
-                  Selesai
+                  <HiOutlineCheckCircle className="w-4 h-4" />
+                  Selesai &amp; Login Ulang
                 </button>
               )}
             </div>
@@ -440,4 +498,3 @@ const ProfilePage = () => {
 };
 
 export default ProfilePage;
-  
