@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   HiOutlineXCircle, HiOutlineCalendar, HiOutlineUser, HiOutlineOfficeBuilding,
   HiOutlineSearch, HiOutlineChevronDown, HiOutlineRefresh,
@@ -7,12 +7,12 @@ import {
   HiOutlineFingerPrint, HiOutlineLogout, HiOutlineChip,
 } from "react-icons/hi";
 import { useNavigate } from "react-router-dom";
-import { useAttendance }         from "../../redux/hooks/useAttendance";
-import { useOvertime }           from "../../redux/hooks/useOvertime";
-import { useAttendanceSettings } from "../../redux/hooks/useAttendanceSettings";
-import { useEmployee }           from "../../redux/hooks/useEmployee";
-import CheckInModal  from "./CheckInModal";
-import CheckOutModal from "./CheckOutModal";
+import { useAttendance }         from "../../../redux/hooks/useAttendance";
+import { useOvertime }           from "../../../redux/hooks/useOvertime";
+import { useAttendanceSettings } from "../../../redux/hooks/useAttendanceSettings";
+import { useEmployee }           from "../../../redux/hooks/useEmployee";
+import CheckInModal  from "../CheckInModal";
+import CheckOutModal from "../CheckOutModal";
 
 const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const monthFull   = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -38,7 +38,7 @@ const parseHHmm = (timeStr) => {
 const isAfterCheckout = (checkOutTimeStr) => {
   const parsed = parseHHmm(checkOutTimeStr);
   if (!parsed) return false;
-  const now    = new Date();
+  const now = new Date();
   const cutoff = new Date();
   cutoff.setHours(parsed.hour, parsed.minute, 0, 0);
   return now >= cutoff;
@@ -241,16 +241,19 @@ const AttendanceSummary = ({ present, absent, late }) => {
 const ActivityHeatmap = ({ attendances, selectedYear, setSelectedYear, availableYears }) => {
   const statusMap = useMemo(() => {
     const map = {};
-    attendances.forEach((att) => { const d = att.date; if (d) map[d] = att.status?.toUpperCase(); });
+    attendances.forEach((att) => {
+      const d = att.date;
+      if (d) map[d] = att.status?.toUpperCase();
+    });
     return map;
   }, [attendances]);
 
   const { weeks, monthPositions } = useMemo(() => {
-    const cursor  = new Date(selectedYear, 0, 1);
-    const dow     = cursor.getDay();
+    const cursor = new Date(selectedYear, 0, 1);
+    const dow = cursor.getDay();
     cursor.setDate(cursor.getDate() + (dow === 0 ? -6 : 1 - dow));
     const endDate = new Date(selectedYear, 11, 31);
-    const weeks   = [];
+    const weeks = [];
     while (cursor <= endDate) {
       const week = [];
       for (let d = 0; d < 7; d++) {
@@ -319,6 +322,7 @@ const ActivityHeatmap = ({ attendances, selectedYear, setSelectedYear, available
             })}
           </div>
         </div>
+
         <div className="flex" style={{ minWidth: `${totalWeeks * 10 + 24}px` }}>
           <div className="flex flex-col flex-shrink-0" style={{ width: "24px", gap: "2px", paddingTop: "2px" }}>
             {weekDays.map((d) => (
@@ -340,7 +344,8 @@ const ActivityHeatmap = ({ attendances, selectedYear, setSelectedYear, available
                   const sLabel =
                     day.status === "PRESENT" ? "Hadir" :
                     day.status === "LATE"    ? "Terlambat" :
-                    day.status === "ABSENT"  ? "Tidak Hadir" : "Tidak ada data";
+                    day.status === "ABSENT"  ? "Tidak Hadir" :
+                                               "Tidak ada data";
                   return (
                     <div key={di} className={`rounded-sm cursor-pointer group relative transition-colors ${colorClass}`} style={{ height: "11px" }}>
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 transition-opacity text-[9px] sm:text-[11px]">
@@ -382,9 +387,12 @@ const DateContextMenu = ({ dateStr, attendanceData, selectedEmployee, onClose, o
           onClose();
           onNavigate("/attendance/correction", {
             state: {
-              selectedDate: dateStr, attendanceData: attendanceData || null,
-              employeeId: selectedEmployee?.id ?? null, employeeName: selectedEmployee?.name ?? null,
-              openModal: true, action: "correction",
+              selectedDate:   dateStr,
+              attendanceData: attendanceData || null,
+              employeeId:     selectedEmployee?.id   ?? null,
+              employeeName:   selectedEmployee?.name ?? null,
+              openModal:      true,
+              action:         "correction",
             },
           });
         }}
@@ -399,9 +407,12 @@ const DateContextMenu = ({ dateStr, attendanceData, selectedEmployee, onClose, o
           onClose();
           onNavigate("/attendance/overtime", {
             state: {
-              selectedDate: dateStr, attendanceData: attendanceData || null,
-              employeeId: selectedEmployee?.id ?? null, employeeName: selectedEmployee?.name ?? null,
-              openModal: true, action: "overtime",
+              selectedDate:   dateStr,
+              attendanceData: attendanceData || null,
+              employeeId:     selectedEmployee?.id   ?? null,
+              employeeName:   selectedEmployee?.name ?? null,
+              openModal:      true,
+              action:         "overtime",
             },
           });
         }}
@@ -492,6 +503,7 @@ const MonthCalendar = ({ year, month, attendanceMap, overtimeMap, onNavigate, se
                       ) : weekend ? (
                         <span className="text-[8px] sm:text-xs text-orange-300">Weekend</span>
                       ) : null}
+
                       {overtime && overtime.status === "APPROVED" && (
                         <div className="relative group flex items-center gap-0.5 sm:gap-1 ml-0.5 sm:ml-1">
                           <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-blue-500 rounded-full" />
@@ -504,7 +516,9 @@ const MonthCalendar = ({ year, month, attendanceMap, overtimeMap, onNavigate, se
                         </div>
                       )}
                     </div>
+
                     {att && (att.checkIn || att.checkOut) && <TimePopover att={att} status={status} />}
+
                     <div className="absolute top-0.5 sm:top-1.5 right-0.5 sm:right-1.5">
                       <button
                         onClick={(e) => { e.stopPropagation(); setOpenMenu(isMenuOpen ? null : dateStr); }}
@@ -533,93 +547,86 @@ const MonthCalendar = ({ year, month, attendanceMap, overtimeMap, onNavigate, se
   );
 };
 
-// ─── Skeleton Loader ──────────────────────────────────────────────────────────
-const SkeletonBlock = ({ className }) => (
-  <div className={`animate-pulse bg-gray-200 rounded-lg ${className}`} />
-);
-
-const AttendanceSkeleton = () => (
-  <div className="space-y-4 sm:space-y-5">
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
-      <SkeletonBlock className="h-36 rounded-xl" />
-      <SkeletonBlock className="h-36 rounded-xl" />
-    </div>
-    <SkeletonBlock className="h-64 rounded-xl" />
-  </div>
-);
-
 // ─── Main Component ───────────────────────────────────────────────────────────
-const AttendanceDashboard = () => {
+const AdminAttendanceDashboard = () => {
   const navigate = useNavigate();
   const {
     attendances, loading, error, employees, loadingEmployees,
     loadEmployees, loadAttendance, dismissError, resetAttendance,
   } = useAttendance();
 
-  const { overtimes, fetchOvertimes }   = useOvertime({ role: "admin" });
-  const { settings, fetchSettings }     = useAttendanceSettings();
-
-  // ── FIX: hanya pakai satu sumber employee ─────────────────────────────────
-  // useAttendance sudah menyediakan `employees` via loadEmployees().
-  // useEmployee dipakai HANYA untuk empMap (foto & detail lengkap).
-  // Pastikan keduanya tidak hit endpoint yang sama.
+  const { overtimes, fetchOvertimes }               = useOvertime({ role: "admin" });
+  const { settings, fetchSettings }                 = useAttendanceSettings();
   const { employees: allEmployees, fetchEmployees } = useEmployee();
 
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [selectedYear,     setSelectedYear]     = useState(new Date().getFullYear());
-  const [calPage,          setCalPage]          = useState(0);
-  const [showCheckIn,      setShowCheckIn]      = useState(false);
-  const [showCheckOut,     setShowCheckOut]     = useState(false);
-
-  // ── Init: satu effect, satu kali, tidak ada redundansi ───────────────────
-  useEffect(() => {
-    fetchSettings();
-    loadEmployees();   // dropdown attendance
-    fetchEmployees();  // foto / detail lengkap
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Resolve logged-in user profile from local storage
+  const loggedInUser = useMemo(() => {
+    try {
+      const userStr = localStorage.getItem("user") || localStorage.getItem("hr_user");
+      if (userStr) return JSON.parse(userStr);
+    } catch (e) {}
+    return null;
   }, []);
 
-  // ── Fetch data saat employee berubah ─────────────────────────────────────
-  // loadAttendance sudah punya dedup internal (cek lastFetchedEmployeeId di hook),
-  // jadi tidak perlu useRef guard di sini.
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [selectedYear, setSelectedYear]         = useState(new Date().getFullYear());
+  const [calPage, setCalPage]                   = useState(0);
+  const [showCheckIn, setShowCheckIn]           = useState(false);
+  const [showCheckOut, setShowCheckOut]         = useState(false);
+
+  useEffect(() => { fetchSettings();  }, []); // eslint-disable-line
+  useEffect(() => { loadEmployees();  }, []); // eslint-disable-line
+  useEffect(() => { fetchEmployees(); }, []); // eslint-disable-line
+
+  // Default selection to the logged-in admin's profile on initial load
   useEffect(() => {
-    if (!selectedEmployee?.id) {
-      resetAttendance();
-      return;
+    if (loggedInUser?.employeeId && employees?.length > 0 && !selectedEmployee) {
+      const myEmp = employees.find((e) => Number(e.id) === Number(loggedInUser.employeeId));
+      if (myEmp) {
+        setSelectedEmployee(myEmp);
+      }
     }
+  }, [employees, loggedInUser, selectedEmployee]);
 
-    setCalPage(0);
-    loadAttendance(selectedEmployee.id);   // skip otomatis jika ID sama
-    fetchOvertimes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEmployee?.id]);
+  useEffect(() => {
+    if (selectedEmployee?.id) {
+      loadAttendance(selectedEmployee.id);
+      fetchOvertimes();
+    } else {
+      resetAttendance();
+    }
+  }, [selectedEmployee]); // eslint-disable-line
 
-  // ── empMap & fullEmployee ─────────────────────────────────────────────────
+  useEffect(() => { setCalPage(0); }, [selectedEmployee]);
+
   const empMap = useMemo(() => {
     const m = {};
     (allEmployees ?? []).forEach((e) => { m[String(e.id)] = e; });
     return m;
   }, [allEmployees]);
 
-  const fullEmployee = useMemo(
-    () => selectedEmployee?.id ? (empMap[String(selectedEmployee.id)] ?? selectedEmployee) : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedEmployee?.id, empMap]
-  );
+  const fullEmployee = useMemo(() => {
+    if (!selectedEmployee?.id) return null;
+    return empMap[String(selectedEmployee.id)] ?? selectedEmployee;
+  }, [selectedEmployee, empMap]);
 
-  // ── Settings helpers ──────────────────────────────────────────────────────
+  // Check if selected employee is the logged-in admin themselves
+  const isSelf = useMemo(() => {
+    if (!selectedEmployee || !loggedInUser) return false;
+    return Number(selectedEmployee.id) === Number(loggedInUser.employeeId);
+  }, [selectedEmployee, loggedInUser]);
+
+  // ─── Mode guard ────────────────────────────────────────────────────────────
   const isOnlineMode = (settings?.mode ?? "OFFLINE") === "ONLINE";
 
   const isCheckoutTime = useMemo(
     () => isAfterCheckout(settings?.checkOutTime ?? "17:00:00"),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings?.checkOutTime, Math.floor(Date.now() / 60000)]
+    [settings?.checkOutTime, Math.floor(Date.now() / 60000)] // eslint-disable-line
   );
 
   const checkInLabel  = (settings?.checkInTime  ?? "08:00:00").slice(0, 5);
   const checkOutLabel = (settings?.checkOutTime ?? "17:00:00").slice(0, 5);
 
-  // ── Derived data ──────────────────────────────────────────────────────────
   const attendanceMap = useMemo(() => {
     const map = {};
     attendances.forEach((att) => { const d = getDate(att); if (d) map[d] = att; });
@@ -657,16 +664,15 @@ const AttendanceDashboard = () => {
     return [...new Set(years)].sort((a, b) => b - a);
   }, [attendances]);
 
-  // ── Refresh handler (manual) ──────────────────────────────────────────────
-  // force:true agar dedup di hook dilewati saat user klik Refresh manual
-  const handleRefresh = useCallback(() => {
-    if (!selectedEmployee?.id) return;
-    loadAttendance(selectedEmployee.id, { force: true });
-    fetchOvertimes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEmployee?.id]);
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 sm:h-96">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-indigo-600 mx-auto" />
+        <p className="mt-3 sm:mt-4 text-gray-500 text-xs sm:text-sm">Memuat data absensi...</p>
+      </div>
+    </div>
+  );
 
-  // ── Error state ───────────────────────────────────────────────────────────
   if (error) return (
     <div className="flex items-center justify-center h-64 sm:h-96">
       <div className="text-center max-w-xs sm:max-w-md px-4">
@@ -686,7 +692,7 @@ const AttendanceDashboard = () => {
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
               <HiOutlineCalendar className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
-              Dashboard Absensi
+              Kelola Absensi (Admin)
             </h1>
             <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
               Jam kerja: {checkInLabel} – {checkOutLabel} (Senin – Jumat)
@@ -702,9 +708,8 @@ const AttendanceDashboard = () => {
             />
 
             <div className="flex items-center gap-3">
-              {/* ── FIX: pakai handleRefresh bukan inline, hindari closure stale ── */}
               <button
-                onClick={handleRefresh}
+                onClick={() => selectedEmployee?.id && loadAttendance(selectedEmployee.id)}
                 disabled={!selectedEmployee}
                 className="p-2 sm:p-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 disabled:opacity-40 transition-colors flex-shrink-0"
                 title="Refresh"
@@ -712,27 +717,35 @@ const AttendanceDashboard = () => {
                 <HiOutlineRefresh className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
 
+              {/* ── Tombol Check-in / Check-out: hanya tampil untuk akun admin sendiri ── */}
               {isOnlineMode ? (
-                isCheckoutTime ? (
-                  <button
-                    onClick={() => { if (selectedEmployee?.id) setShowCheckOut(true); }}
-                    disabled={!selectedEmployee}
-                    className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0 text-xs sm:text-sm font-semibold shadow-sm"
-                  >
-                    <HiOutlineLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span>Check-out</span>
-                  </button>
+                isSelf ? (
+                  isCheckoutTime ? (
+                    <button
+                      onClick={() => { if (selectedEmployee?.id) setShowCheckOut(true); }}
+                      className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors flex-shrink-0 text-xs sm:text-sm font-semibold shadow-sm"
+                    >
+                      <HiOutlineLogout className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span>Check-out Saya</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { if (selectedEmployee?.id) setShowCheckIn(true); }}
+                      className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors flex-shrink-0 text-xs sm:text-sm font-semibold shadow-sm"
+                    >
+                      <HiOutlineFingerPrint className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span>Absen Hari Ini</span>
+                    </button>
+                  )
                 ) : (
-                  <button
-                    onClick={() => { if (selectedEmployee?.id) setShowCheckIn(true); }}
-                    disabled={!selectedEmployee}
-                    className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0 text-xs sm:text-sm font-semibold shadow-sm"
-                  >
-                    <HiOutlineFingerPrint className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span>Absen Hari Ini</span>
-                  </button>
+                  /* Banner readonly saat admin melihat akun karyawan lain */
+                  <div className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl text-xs text-gray-500 font-medium flex-shrink-0">
+                    <HiOutlineInformationCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span>Mode Lihat (Read-Only)</span>
+                  </div>
                 )
               ) : (
+                /* Banner offline — tampil sebagai pengganti tombol */
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium flex-shrink-0">
                   <HiOutlineChip className="w-4 h-4 text-amber-500 flex-shrink-0" />
                   <span>Mode Mesin</span>
@@ -742,13 +755,17 @@ const AttendanceDashboard = () => {
           </div>
         </div>
 
+        {/* ── Offline info banner di bawah header ── */}
         {!isOnlineMode && (
           <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100 flex items-start gap-2.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
             <HiOutlineChip className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-500" />
             <span>
               <strong>Mode Offline aktif.</strong> Absensi dikelola oleh mesin absen.
-              Tombol Check-in &amp; Check-out tidak tersedia. Ubah di{" "}
-              <button onClick={() => navigate("/settings")} className="underline hover:text-amber-900 transition-colors">
+              Tombol Check-in &amp; Check-out online tidak tersedia. Ubah di{" "}
+              <button
+                onClick={() => navigate("/settings")}
+                className="underline hover:text-amber-900 transition-colors"
+              >
                 Settings → Attendance
               </button>.
             </span>
@@ -759,7 +776,9 @@ const AttendanceDashboard = () => {
           <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100 flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
             <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-indigo-50 rounded-lg">
               <HiOutlineUser className="w-3 h-3 sm:w-4 sm:h-4 text-indigo-600" />
-              <span className="font-medium text-indigo-700 text-xs sm:text-sm">{selectedEmployee.name}</span>
+              <span className="font-medium text-indigo-700 text-xs sm:text-sm">
+                {selectedEmployee.name} {isSelf && "(Saya)"}
+              </span>
             </div>
             <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-gray-50 rounded-lg text-gray-500 text-[10px] sm:text-xs">
               NIK: <span className="font-mono text-gray-700 ml-0.5 sm:ml-1">{selectedEmployee.employeeIdentificationNumber}</span>
@@ -780,15 +799,13 @@ const AttendanceDashboard = () => {
 
         {!selectedEmployee && (
           <p className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100 text-xs sm:text-sm text-gray-400">
-            Pilih karyawan dari dropdown untuk melihat data absensi.
+            Pilih karyawan dari dropdown untuk melihat atau mengoreksi data absensi.
           </p>
         )}
       </div>
 
-      {/* ── Content ──────────────────────────────────────────────────────────── */}
-      {loading ? (
-        <AttendanceSkeleton />
-      ) : attendances.length > 0 ? (
+      {/* ── Summary + Heatmap ──────────────────────────────────────────────── */}
+      {attendances.length > 0 && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4 items-stretch">
             <AttendanceSummary present={summary.present} absent={summary.absent} late={summary.late} />
@@ -852,7 +869,9 @@ const AttendanceDashboard = () => {
             </div>
           </div>
         </>
-      ) : selectedEmployee && !loading ? (
+      )}
+
+      {attendances.length === 0 && !loading && selectedEmployee && (
         <div className="bg-white rounded-xl border border-gray-200 p-8 sm:p-12 text-center">
           <HiOutlineCalendar className="w-10 h-10 sm:w-14 sm:h-14 text-gray-300 mx-auto mb-3 sm:mb-4" />
           <h3 className="text-sm sm:text-base font-medium text-gray-700 mb-1">Tidak Ada Data Absensi</h3>
@@ -860,12 +879,12 @@ const AttendanceDashboard = () => {
             Belum ada catatan absensi untuk <span className="font-medium">{selectedEmployee.name}</span>.
           </p>
         </div>
-      ) : null}
+      )}
 
       <p className="text-center text-[10px] sm:text-xs text-gray-400 pt-3 sm:pt-4 border-t border-gray-200">
         {selectedEmployee
-          ? `Data absensi: ${selectedEmployee.name} (${selectedEmployee.employeeIdentificationNumber}) · Jam kerja: ${checkInLabel} – ${checkOutLabel}`
-          : "Pilih karyawan dari dropdown untuk melihat data absensi"}
+          ? `Mengelola absensi: ${selectedEmployee.name} (${selectedEmployee.employeeIdentificationNumber}) · Jam kerja: ${checkInLabel} – ${checkOutLabel}`
+          : "Pilih karyawan dari dropdown untuk mengelola data absensi"}
       </p>
 
       <CheckInModal
@@ -890,4 +909,4 @@ const AttendanceDashboard = () => {
   );
 };
 
-export default AttendanceDashboard;
+export default AdminAttendanceDashboard;

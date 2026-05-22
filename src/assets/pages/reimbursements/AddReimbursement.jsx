@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   HiOutlineArrowLeft, HiOutlineCurrencyDollar, HiOutlinePaperClip,
-  HiOutlineX, HiOutlineDocumentText, HiOutlineZoomIn
+  HiOutlineX, HiOutlineDocumentText, HiOutlineZoomIn, HiOutlineLockClosed,
 } from "react-icons/hi";
 import { useReimbursement } from "../../../redux/hooks/useReimbursement";
 import { useEmployee } from "../../../redux/hooks/useEmployee";
 import API from "../../../ApiService/api";
 
 const chevronBg   = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`;
-const selectStyle = { backgroundImage: chevronBg, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.25rem' };
+const selectStyle = { backgroundImage: chevronBg, backgroundPosition: "right 0.75rem center", backgroundRepeat: "no-repeat", backgroundSize: "1.25rem" };
 
 const CATEGORIES = ["Transport", "Meals", "Accommodation", "Office Supplies", "Medical", "Training", "Entertainment", "Other"];
 const ALLOWED    = ["image/jpeg", "image/png", "application/pdf"];
@@ -27,6 +27,15 @@ const uploadFile = async (file) => {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data.data?.fileUrl || res.data.data?.url || res.data.data;
+};
+
+// ── Ambil user login dari localStorage ───────────────────────────────────────
+const getLoggedInUser = () => {
+  try {
+    const raw = localStorage.getItem("user") || localStorage.getItem("hr_user");
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return null;
 };
 
 const fieldValidators = {
@@ -55,8 +64,6 @@ const ReceiptModal = ({ url, onClose }) => {
     };
   }, [onClose]);
 
-  // For local object URLs (images), isImage check won't match the blob: prefix,
-  // so we also check if url starts with "blob:"
   const showAsImage = isImage || (url && url.startsWith("blob:"));
 
   return (
@@ -65,7 +72,6 @@ const ReceiptModal = ({ url, onClose }) => {
       onClick={handleBackdrop}
     >
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-        {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2">
             <HiOutlineDocumentText className="w-5 h-5 text-gray-500" />
@@ -79,22 +85,11 @@ const ReceiptModal = ({ url, onClose }) => {
             <HiOutlineX className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Modal Body */}
         <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-gray-50 min-h-0">
           {showAsImage ? (
-            <img
-              src={url}
-              alt="Receipt"
-              className="max-w-full max-h-full object-contain rounded-lg shadow"
-            />
+            <img src={url} alt="Receipt" className="max-w-full max-h-full object-contain rounded-lg shadow" />
           ) : (
-            <iframe
-              src={url}
-              title="Receipt PDF"
-              className="w-full rounded-lg border border-gray-200 bg-white"
-              style={{ height: "65vh" }}
-            />
+            <iframe src={url} title="Receipt PDF" className="w-full rounded-lg border border-gray-200 bg-white" style={{ height: "65vh" }} />
           )}
         </div>
       </div>
@@ -110,26 +105,73 @@ const CreateReimbursement = () => {
   const { createReimbursement }       = useReimbursement();
   const { employees, fetchEmployees } = useEmployee();
 
+  // ── Role detection ────────────────────────────────────────────────────────
+  const loggedInUser   = useMemo(() => getLoggedInUser(), []);
+  const isAdmin        = loggedInUser?.role === "ADMIN";
+  const selfEmployeeId = useMemo(
+    () => loggedInUser?.employeeId ?? loggedInUser?.id ?? null,
+    [loggedInUser]
+  );
+
   const [formData, setFormData] = useState({
     title: "", expenseDate: "", category: "", total: "",
     employeeId: "", paidBy: "EMPLOYEE", notes: "",
   });
-  const [errors,          setErrors]          = useState({});
-  const [touched,         setTouched]         = useState({});
-  const [isSubmitting,    setIsSubmitting]    = useState(false);
-  const [uploading,       setUploading]       = useState(false);
-  const [file,            setFile]            = useState(null);
-  const [filePreview,     setFilePreview]     = useState(null);
-  const [fileError,       setFileError]       = useState(null);
-  const [dragOver,        setDragOver]        = useState(false);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [errors,           setErrors]           = useState({});
+  const [touched,          setTouched]          = useState({});
+  const [isSubmitting,     setIsSubmitting]      = useState(false);
+  const [uploading,        setUploading]         = useState(false);
+  const [file,             setFile]              = useState(null);
+  const [filePreview,      setFilePreview]       = useState(null);
+  const [fileError,        setFileError]         = useState(null);
+  const [dragOver,         setDragOver]          = useState(false);
+  const [showReceiptModal, setShowReceiptModal]  = useState(false);
 
-  useEffect(() => { fetchEmployees(); }, []);
+  // ── State nama karyawan untuk EMPLOYEE (bukan admin) ─────────────────────
+  const [selfEmployeeName, setSelfEmployeeName] = useState("");
+
+  // Hanya fetch semua karyawan kalau ADMIN
+  useEffect(() => {
+    if (isAdmin) fetchEmployees();
+  }, [isAdmin]);
+
+  // Auto-isi employeeId untuk EMPLOYEE saat komponen mount
+  useEffect(() => {
+    if (!isAdmin && selfEmployeeId) {
+      setFormData((f) => ({ ...f, employeeId: String(selfEmployeeId) }));
+    }
+  }, [isAdmin, selfEmployeeId]);
+
+  // ── Fetch nama karyawan sendiri berdasarkan employeeId ───────────────────
+  useEffect(() => {
+    if (!isAdmin && selfEmployeeId) {
+      API.get(`/employees/${selfEmployeeId}`)
+        .then((res) => {
+          const emp = res.data?.data ?? res.data;
+          const name = emp?.name ?? emp?.fullName ?? emp?.fullname ?? "";
+          setSelfEmployeeName(name);
+        })
+        .catch(() => {
+          // fallback: coba dari list semua karyawan
+          API.get("/employees")
+            .then((res) => {
+              const list = res.data?.data ?? res.data ?? [];
+              const me = Array.isArray(list)
+                ? list.find((e) => String(e.id) === String(selfEmployeeId))
+                : null;
+              if (me) setSelfEmployeeName(me.name ?? me.fullName ?? me.fullname ?? "");
+            })
+            .catch(() => {});
+        });
+    }
+  }, [isAdmin, selfEmployeeId]);
+
+  const activeEmployees = employees?.filter((e) => e.status === "ACTIVE") || [];
 
   const validateField = (name, value) => fieldValidators[name]?.(value) ?? null;
   const validateAll   = () => {
     const errs = {};
-    Object.keys(fieldValidators).forEach(name => {
+    Object.keys(fieldValidators).forEach((name) => {
       const err = validateField(name, formData[name]);
       if (err) errs[name] = err;
     });
@@ -139,18 +181,18 @@ const CreateReimbursement = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     const next = name === "total" ? fmtRupiah(value) : value;
-    setFormData(p => ({ ...p, [name]: next }));
+    setFormData((p) => ({ ...p, [name]: next }));
     if (touched[name]) {
       const err = validateField(name, next);
-      setErrors(p => ({ ...p, [name]: err || undefined }));
+      setErrors((p) => ({ ...p, [name]: err || undefined }));
     }
   };
 
   const handleBlur = (e) => {
     const { name, value } = e.target;
-    setTouched(p => ({ ...p, [name]: true }));
+    setTouched((p) => ({ ...p, [name]: true }));
     const err = validateField(name, value);
-    setErrors(p => ({ ...p, [name]: err || undefined }));
+    setErrors((p) => ({ ...p, [name]: err || undefined }));
   };
 
   // ── File ──────────────────────────────────────────────────────────────────
@@ -160,7 +202,6 @@ const CreateReimbursement = () => {
     if (f.size > MAX_MB * 1024 * 1024) { setFileError(`Max file size is ${MAX_MB}MB.`);  return; }
     setFileError(null);
     setFile(f);
-    // For images: object URL; for PDF: also create object URL so modal can iframe it
     setFilePreview(URL.createObjectURL(f));
   };
 
@@ -199,7 +240,7 @@ const CreateReimbursement = () => {
       });
 
       navigate("/reimbursements", {
-        state: { toast: { show: true, message: "Reimbursement submitted successfully.", type: "success" } }
+        state: { toast: { show: true, message: "Reimbursement submitted successfully.", type: "success" } },
       });
     } catch (err) {
       console.error(err);
@@ -210,9 +251,9 @@ const CreateReimbursement = () => {
     }
   };
 
-  const busy            = isSubmitting || uploading;
-  const isFilePdf       = file && file.type === "application/pdf";
-  const activeEmployees = employees?.filter(e => e.status === "ACTIVE") || [];
+  const busy      = isSubmitting || uploading;
+  const isFilePdf = file && file.type === "application/pdf";
+
   const inputCls  = (f) => `w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors ${errors[f] ? "border-red-300 bg-red-50" : "border-gray-300"}`;
   const selectCls = (f) => `w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-white transition-colors ${errors[f] ? "border-red-300 bg-red-50" : "border-gray-300"}`;
   const ErrorMsg  = ({ field }) => errors[field] ? <p className="mt-1 text-xs text-red-500">{errors[field]}</p> : null;
@@ -279,7 +320,7 @@ const CreateReimbursement = () => {
                 onChange={handleChange} onBlur={handleBlur} disabled={busy}
                 className={selectCls("category")} style={selectStyle}>
                 <option value="">Select Category</option>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <ErrorMsg field="category" />
             </div>
@@ -298,20 +339,43 @@ const CreateReimbursement = () => {
               <ErrorMsg field="total" />
             </div>
 
-            {/* Employee */}
+            {/* Employee — ADMIN: dropdown, EMPLOYEE: locked display */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Employee <span className="text-red-500">*</span>
               </label>
-              <select name="employeeId" value={formData.employeeId}
-                onChange={handleChange} onBlur={handleBlur} disabled={busy}
-                className={selectCls("employeeId")} style={selectStyle}>
-                <option value="">Select Employee</option>
-                {activeEmployees.map(e => (
-                  <option key={e.id} value={e.id}>{e.name}{e.employeeCode ? ` (${e.employeeCode})` : ""}</option>
-                ))}
-              </select>
-              <ErrorMsg field="employeeId" />
+
+              {isAdmin ? (
+                /* ADMIN: bisa pilih karyawan mana saja */
+                <>
+                  <select name="employeeId" value={formData.employeeId}
+                    onChange={handleChange} onBlur={handleBlur} disabled={busy}
+                    className={selectCls("employeeId")} style={selectStyle}>
+                    <option value="">Select Employee</option>
+                    {activeEmployees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}{e.employeeCode ? ` (${e.employeeCode})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ErrorMsg field="employeeId" />
+                </>
+              ) : (
+                /* EMPLOYEE: tampilkan nama karyawan dari data employee, tidak bisa diubah */
+                <div className="relative">
+                  <div className={`${inputCls("employeeId")} flex items-center justify-between bg-gray-100 cursor-not-allowed`}>
+                    <span className="text-gray-700 font-medium truncate">
+                      {selfEmployeeName
+                        || loggedInUser?.name
+                        || loggedInUser?.fullName
+                        || `Employee #${selfEmployeeId}`}
+                    </span>
+                    <HiOutlineLockClosed className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
+                  </div>
+                  {/* hidden input agar formData.employeeId tetap terkirim */}
+                  <input type="hidden" name="employeeId" value={formData.employeeId} readOnly />
+                </div>
+              )}
             </div>
 
             {/* Paid By */}
@@ -321,11 +385,13 @@ const CreateReimbursement = () => {
                 {[
                   { value: "EMPLOYEE", label: "Employee", desc: "Employee paid first, to be reimbursed" },
                   { value: "COMPANY",  label: "Company",  desc: "Company paid directly" },
-                ].map(opt => (
-                  <label key={opt.value}
+                ].map((opt) => (
+                  <label
+                    key={opt.value}
                     className={`flex-1 flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
                       formData.paidBy === opt.value ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300"
-                    }`}>
+                    }`}
+                  >
                     <input type="radio" name="paidBy" value={opt.value}
                       checked={formData.paidBy === opt.value} onChange={handleChange}
                       className="mt-0.5 accent-indigo-600" />
@@ -355,33 +421,30 @@ const CreateReimbursement = () => {
 
               {!file ? (
                 <div
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files[0]); }}
+                  onDrop={(e) => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files[0]); }}
                   onClick={() => fileRef.current?.click()}
                   className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-                    dragOver   ? "border-indigo-400 bg-indigo-50" :
-                    fileError  ? "border-red-300 bg-red-50"       :
+                    dragOver   ? "border-indigo-400 bg-indigo-50"  :
+                    fileError  ? "border-red-300 bg-red-50"        :
                                  "border-gray-200 hover:border-indigo-300 hover:bg-gray-50"
-                  }`}>
+                  }`}
+                >
                   <HiOutlinePaperClip className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm font-medium text-gray-600">Drop file here or <span className="text-indigo-600">browse</span></p>
                   <p className="text-xs text-gray-400 mt-1">JPG, PNG, PDF up to 10MB</p>
                 </div>
               ) : (
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
-                  {/* Image thumbnail with preview click */}
                   {!isFilePdf && filePreview && (
                     <button
                       type="button"
                       onClick={() => setShowReceiptModal(true)}
                       className="block w-full relative group focus:outline-none"
                     >
-                      <img
-                        src={filePreview}
-                        alt="preview"
-                        className="w-full max-h-48 object-contain bg-gray-50 transition-opacity group-hover:opacity-80"
-                      />
+                      <img src={filePreview} alt="preview"
+                        className="w-full max-h-48 object-contain bg-gray-50 transition-opacity group-hover:opacity-80" />
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <span className="bg-black/60 text-white text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5">
                           <HiOutlineZoomIn className="w-4 h-4" /> Click to preview
@@ -389,7 +452,6 @@ const CreateReimbursement = () => {
                       </div>
                     </button>
                   )}
-
                   <div className="p-4 flex items-center gap-4 bg-gray-50">
                     {isFilePdf && (
                       <div className="w-16 h-16 bg-red-50 rounded-lg border border-red-100 flex items-center justify-center flex-shrink-0">
@@ -419,7 +481,7 @@ const CreateReimbursement = () => {
               )}
 
               <input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden"
-                onChange={e => processFile(e.target.files[0])} />
+                onChange={(e) => processFile(e.target.files[0])} />
               {fileError && <p className="mt-1 text-xs text-red-500">{fileError}</p>}
             </div>
 

@@ -316,7 +316,9 @@ const DetailPanel = ({
 }) => {
   const earnings   = payslip?.components?.filter(c => c.type === 'EARNING')   ?? [];
   const deductions = payslip?.components?.filter(c => c.type === 'DEDUCTION') ?? [];
-  const totalEarning   = Number(payslip?.totalEarning   ?? payslip?.basicSalary ?? 0);
+  const totalEarning = Number(payslip?.basicSalary ?? 0)
+  + Number(payslip?.totalEarning ?? 0)
+  + Number(payslip?.overtimePay  ?? 0);
   const totalDeduction = Number(payslip?.totalDeduction ?? 0);
   const emp   = empMap?.[String(payslip?.employeeId)];
   const photo = getEmpPhoto(emp);
@@ -374,7 +376,10 @@ const DetailPanel = ({
           {[
             { label: 'Absen',  value: payslip?.totalAbsent        ?? 0, unit: 'hari', color: 'text-rose-600',  bg: 'bg-rose-50'  },
             { label: 'Telat',  value: payslip?.totalLate          ?? 0, unit: 'kali', color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Lembur', value: payslip?.totalOvertimeHours ?? 0, unit: 'jam',  color: 'text-blue-600',  bg: 'bg-blue-50'  },
+            { label: 'Lembur', value: (() => {
+              const v = Number(payslip?.totalOvertimeHours ?? 0);
+              return v % 1 === 0 ? v : parseFloat(v.toFixed(2));
+            })(), unit: 'jam', color: 'text-blue-600', bg: 'bg-blue-50' },
           ].map(({ label, value, unit, color, bg }) => (
             <div key={label} className={`${bg} rounded-xl p-2.5 text-center`}>
               <p className="text-[10px] text-gray-400 mb-0.5">{label}</p>

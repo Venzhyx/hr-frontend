@@ -107,28 +107,54 @@ export const fetchAttendanceById = createAsyncThunk(
   }
 );
 
+/**
+ * Fetch all attendances by date (semua karyawan di tanggal tertentu)
+ */
+export const fetchAttendancesByDate = createAsyncThunk(
+  "attendance/fetchByDate",
+  async (date, { rejectWithValue }) => {
+    try {
+      const res = await API.get(`/attendances/date/${date}`);
+      let parsed;
+      if (typeof res.data === "string") {
+        try {
+          parsed = JSON.parse(res.data);
+        } catch (parseErr) {
+          console.error("[Slice] JSON.parse gagal pada fetchByDate");
+          return rejectWithValue("Response dari server tidak valid.");
+        }
+      } else {
+        parsed = res.data;
+      }
+      return Array.isArray(parsed?.data) ? parsed.data : [];
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || "Gagal memuat data absensi.");
+    }
+  }
+);
+
 // ─── Slice ────────────────────────────────────────────────────────────────────
 
 const attendanceSlice = createSlice({
   name: "attendance",
   initialState: {
     attendances: [],
+    loading: false,
+    error: null,
+    employees: [],
+    loadingEmployees: false,
+    lastFetchedEmployeeId: null,
+    currentAttendance: null,
+    checkInStatus: {
       loading: false,
       error: null,
-      employees: [],
-      loadingEmployees: false,
-      lastFetchedEmployeeId: null,
-      currentAttendance: null, // For single attendance detail
-      checkInStatus: {
-        loading: false,
-        error: null,
-        success: false,
-      },
-      checkOutStatus: {
-        loading: false,
-        error: null,
-        success: false,
-      },
+      success: false,
+    },
+    checkOutStatus: {
+      loading: false,
+      error: null,
+      success: false,
+    },
   },
   reducers: {
     /**
@@ -168,7 +194,7 @@ const attendanceSlice = createSlice({
     upsertAttendance(state, action) {
       const updated = action.payload;
       if (!updated?.id) return;
-      
+
       const idx = state.attendances.findIndex((a) => a.id === updated.id);
       if (idx !== -1) {
         // Update existing record
@@ -277,13 +303,29 @@ const attendanceSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       });
+
+    // ========== Fetch Attendances by Date ==========
+    builder
+      .addCase(fetchAttendancesByDate.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAttendancesByDate.fulfilled, (state, action) => {
+        state.loading = false;
+        state.attendances = action.payload;
+        state.lastFetchedEmployeeId = null; // bukan per-employee
+      })
+      .addCase(fetchAttendancesByDate.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
   },
 });
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
-export const { 
-  clearAttendanceError, 
-  clearAttendanceData, 
+export const {
+  clearAttendanceError,
+  clearAttendanceData,
   resetAttendanceState,
   upsertAttendance,
   removeAttendance,
@@ -343,7 +385,7 @@ export const selectCheckOutStatus = (state) => state.attendance.checkOutStatus;
 /**
  * Get attendance by ID (memoized selector alternative)
  */
-export const selectAttendanceById = (state, id) => 
+export const selectAttendanceById = (state, id) =>
   state.attendance.attendances.find((att) => att.id === id);
 
 /**
@@ -363,7 +405,7 @@ export const selectAttendancesByDateRange = (state, startDate, endDate) => {
  */
 export const selectAttendancesByStatus = (state, status) => {
   if (!status) return state.attendance.attendances;
-  return state.attendance.attendances.filter((att) => 
+  return state.attendance.attendances.filter((att) =>
     att.status?.toUpperCase() === status.toUpperCase()
   );
 };
@@ -377,7 +419,7 @@ export const selectAttendanceStats = (state) => {
   const present = attendances.filter((a) => a.status === "PRESENT").length;
   const late = attendances.filter((a) => a.status === "LATE").length;
   const absent = attendances.filter((a) => a.status === "ABSENT").length;
-  
+
   return {
     total,
     present,

@@ -12,6 +12,8 @@ import {
   HiOutlineRefresh,
   HiOutlineLocationMarker,
   HiOutlineHome,
+  HiOutlineDesktopComputer,
+  HiOutlineChip,
 } from 'react-icons/hi';
 import { useAttendanceSettings } from '../../redux/hooks/useAttendanceSettings';
 import { useCalendarEvent }      from '../../redux/hooks/useCalendarEvent';
@@ -35,7 +37,6 @@ const STATUS_OPTIONS = [
   { value: 'INACTIVE', label: 'Inactive' },
 ];
 
-// Radius preset options (meter)
 const RADIUS_PRESETS = [50, 100, 200, 500, 1000];
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -136,6 +137,49 @@ const TimeSelect = ({ value, onChange }) => {
   );
 };
 
+// ─── Attendance Mode Radio Card ───────────────────────────────────────────────
+const ModeCard = ({ value, selected, onChange, icon, title, description, accentColor }) => (
+  <button
+    type="button"
+    onClick={() => onChange(value)}
+    className={`relative flex items-start gap-4 w-full p-4 rounded-xl border-2 text-left transition-all
+      ${selected
+        ? `border-${accentColor}-500 bg-${accentColor}-50`
+        : 'border-gray-200 bg-white hover:border-gray-300'
+      }`}
+  >
+    {/* Radio dot */}
+    <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors
+      ${selected ? `border-${accentColor}-500` : 'border-gray-300'}`}>
+      {selected && (
+        <div className={`w-2 h-2 rounded-full bg-${accentColor}-500`} />
+      )}
+    </div>
+
+    {/* Icon */}
+    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0
+      ${selected ? `bg-${accentColor}-100 text-${accentColor}-600` : 'bg-gray-100 text-gray-400'}`}>
+      {icon}
+    </div>
+
+    {/* Text */}
+    <div className="flex-1 min-w-0">
+      <p className={`text-sm font-semibold ${selected ? `text-${accentColor}-700` : 'text-gray-700'}`}>
+        {title}
+      </p>
+      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{description}</p>
+    </div>
+
+    {/* Active badge */}
+    {selected && (
+      <span className={`absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full
+        bg-${accentColor}-100 text-${accentColor}-700`}>
+        AKTIF
+      </span>
+    )}
+  </button>
+);
+
 // ─── Attendance Settings ───────────────────────────────────────────────────────
 const AttendanceSettings = ({ showToast }) => {
   const { settings, loading, saving, error, fetchSettings, updateSettings } = useAttendanceSettings();
@@ -146,10 +190,12 @@ const AttendanceSettings = ({ showToast }) => {
     checkInTime:                    '08:00',
     checkOutTime:                   '17:00',
     wfoRadius:                      100,
-    wfhRadius:                      100,   // ← WFH Radius
+    wfhRadius:                      100,
+    mode:                           'OFFLINE',
   });
 
   useEffect(() => { fetchSettings(); }, []);
+
   useEffect(() => {
     if (settings) {
       setForm({
@@ -158,7 +204,8 @@ const AttendanceSettings = ({ showToast }) => {
         checkInTime:  (settings.checkInTime  ?? '08:00:00').slice(0, 5),
         checkOutTime: (settings.checkOutTime ?? '17:00:00').slice(0, 5),
         wfoRadius:    settings.wfoRadius ?? 100,
-        wfhRadius:    settings.wfhRadius ?? 100,   // ← WFH Radius
+        wfhRadius:    settings.wfhRadius ?? 100,
+        mode:         settings.mode ?? 'OFFLINE',
       });
     }
   }, [settings]);
@@ -170,7 +217,8 @@ const AttendanceSettings = ({ showToast }) => {
       checkInTime:                    form.checkInTime,
       checkOutTime:                   form.checkOutTime,
       wfoRadius:                      Number(form.wfoRadius),
-      wfhRadius:                      Number(form.wfhRadius),   // ← WFH Radius
+      wfhRadius:                      Number(form.wfhRadius),
+      mode:                           form.mode,
     });
     if (result.meta.requestStatus === 'fulfilled') {
       showToast('Attendance settings saved', 'success');
@@ -182,12 +230,61 @@ const AttendanceSettings = ({ showToast }) => {
   if (loading) return <SectionCard title="Attendance Settings"><Spinner /></SectionCard>;
   if (error)   return <SectionCard title="Attendance Settings"><ErrorBox message={error} onRetry={fetchSettings} /></SectionCard>;
 
-  // Visual radius ring preview (scale: max 500m → 120px)
   const wfoPreviewPx = Math.min(Math.max((form.wfoRadius / 500) * 120, 20), 120);
   const wfhPreviewPx = Math.min(Math.max((form.wfhRadius / 500) * 120, 20), 120);
 
   return (
     <div className="space-y-6">
+
+      {/* ── Attendance Mode ── */}
+      <SectionCard title="Attendance Mode">
+        <div className="space-y-4 max-w-2xl">
+          <p className="text-sm text-gray-500">
+            Pilih metode pencatatan absensi karyawan. Perubahan mode berlaku segera setelah disimpan.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <ModeCard
+              value="ONLINE"
+              selected={form.mode === 'ONLINE'}
+              onChange={(v) => setForm(f => ({ ...f, mode: v }))}
+              icon={<HiOutlineDesktopComputer className="w-5 h-5" />}
+              title="Online"
+              description="Karyawan absen mandiri via aplikasi. Tombol Check-in & Check-out aktif. Scheduler mesin dinonaktifkan."
+              accentColor="indigo"
+            />
+            <ModeCard
+              value="OFFLINE"
+              selected={form.mode === 'OFFLINE'}
+              onChange={(v) => setForm(f => ({ ...f, mode: v }))}
+              icon={<HiOutlineChip className="w-5 h-5" />}
+              title="Offline (Mesin)"
+              description="Absensi dikelola oleh mesin absen. Tombol Check-in & Check-out dinonaktifkan di aplikasi."
+              accentColor="amber"
+            />
+          </div>
+
+          {/* Info banner sesuai mode yang dipilih */}
+          {form.mode === 'ONLINE' && (
+            <div className="flex items-start gap-3 p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-700">
+              <HiOutlineCheck className="w-4 h-4 mt-0.5 flex-shrink-0 text-indigo-500" />
+              <div className="space-y-0.5">
+                <p className="font-semibold">Mode Online aktif</p>
+                <p>Karyawan bisa Check-in dan Check-out via aplikasi. Scheduler pemrosesan file mesin akan dilewati.</p>
+              </div>
+            </div>
+          )}
+          {form.mode === 'OFFLINE' && (
+            <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+              <HiOutlineChip className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-500" />
+              <div className="space-y-0.5">
+                <p className="font-semibold">Mode Offline aktif</p>
+                <p>Tombol Check-in & Check-out di aplikasi akan dinonaktifkan. Absensi diproses dari file mesin secara otomatis.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </SectionCard>
 
       {/* ── Extra Hours ── */}
       <SectionCard title="Extra Hours">
@@ -225,16 +322,10 @@ const AttendanceSettings = ({ showToast }) => {
           <div>
             <label className={labelCls}>Default Check-in Time</label>
             <TimeSelect value={form.checkInTime} onChange={v => setForm(f => ({ ...f, checkInTime: v }))} />
-            <p className="mt-1 text-xs text-gray-400">
-              Setelah jam ini, tombol absen akan tampil sebagai <span className="font-medium text-gray-600">Check-in</span>.
-            </p>
           </div>
           <div>
             <label className={labelCls}>Default Check-out Time</label>
             <TimeSelect value={form.checkOutTime} onChange={v => setForm(f => ({ ...f, checkOutTime: v }))} />
-            <p className="mt-1 text-xs text-gray-400">
-              Setelah jam ini, tombol absen akan berubah menjadi <span className="font-medium text-gray-600">Check-out</span>.
-            </p>
           </div>
         </div>
       </SectionCard>
@@ -242,78 +333,43 @@ const AttendanceSettings = ({ showToast }) => {
       {/* ── WFO Radius ── */}
       <SectionCard title="WFO Location Radius">
         <div className="flex flex-col md:flex-row gap-8">
-          {/* Left: controls */}
           <div className="flex-1 space-y-5 max-w-sm">
             <div>
               <label className={labelCls}>
                 Radius Check-in WFO
                 <span className="ml-1 text-gray-400 font-normal">(meter)</span>
               </label>
-
-              {/* Number input */}
               <div className="flex items-center gap-3 mt-1">
-                <input
-                  type="number"
-                  min={10}
-                  max={5000}
-                  value={form.wfoRadius}
+                <input type="number" min={10} max={5000} value={form.wfoRadius}
                   onChange={e => setForm(f => ({ ...f, wfoRadius: e.target.value }))}
-                  className={`${inputCls} w-40`}
-                />
+                  className={`${inputCls} w-40`} />
                 <span className="text-sm text-gray-500">meter</span>
               </div>
-
-              {/* Slider */}
-              <input
-                type="range"
-                min={10}
-                max={2000}
-                step={10}
-                value={form.wfoRadius}
+              <input type="range" min={10} max={2000} step={10} value={form.wfoRadius}
                 onChange={e => setForm(f => ({ ...f, wfoRadius: Number(e.target.value) }))}
-                className="w-full mt-3 accent-indigo-600"
-              />
+                className="w-full mt-3 accent-indigo-600" />
               <div className="flex justify-between text-xs text-gray-400 mt-0.5">
-                <span>10 m</span>
-                <span>2000 m</span>
+                <span>10 m</span><span>2000 m</span>
               </div>
-
-              {/* Quick presets */}
               <div className="flex flex-wrap gap-2 mt-3">
                 {RADIUS_PRESETS.map(r => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, wfoRadius: r }))}
+                  <button key={r} type="button" onClick={() => setForm(f => ({ ...f, wfoRadius: r }))}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                       Number(form.wfoRadius) === r
                         ? 'bg-indigo-600 text-white border-indigo-600'
                         : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
-                    }`}
-                  >
+                    }`}>
                     {r >= 1000 ? `${r / 1000} km` : `${r} m`}
                   </button>
                 ))}
               </div>
-
-              <p className="mt-3 text-xs text-gray-400 leading-relaxed">
-                Karyawan yang check-in WFO dengan jarak lebih dari{' '}
-                <span className="font-semibold text-gray-600">
-                  {form.wfoRadius >= 1000 ? `${form.wfoRadius / 1000} km` : `${form.wfoRadius} m`}
-                </span>{' '}
-                dari lokasi kantor akan mendapat peringatan.
-              </p>
             </div>
           </div>
-
-          {/* Right: visual ring preview */}
           <div className="flex flex-col items-center justify-center gap-3 min-w-[180px]">
             <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Preview</p>
             <div className="relative flex items-center justify-center" style={{ width: 160, height: 160 }}>
-              <div
-                className="absolute rounded-full border-2 border-dashed border-indigo-300 bg-indigo-50/40 transition-all duration-300"
-                style={{ width: wfoPreviewPx * 2, height: wfoPreviewPx * 2 }}
-              />
+              <div className="absolute rounded-full border-2 border-dashed border-indigo-300 bg-indigo-50/40 transition-all duration-300"
+                style={{ width: wfoPreviewPx * 2, height: wfoPreviewPx * 2 }} />
               <div className="relative z-10 w-9 h-9 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg">
                 <HiOutlineLocationMarker className="w-5 h-5 text-white" />
               </div>
@@ -330,88 +386,52 @@ const AttendanceSettings = ({ showToast }) => {
       {/* ── WFH Radius ── */}
       <SectionCard title="WFH Location Radius">
         <div className="flex flex-col md:flex-row gap-8">
-          {/* Left: controls */}
           <div className="flex-1 space-y-5 max-w-sm">
             <div>
               <label className={labelCls}>
                 Radius Check-in WFH
                 <span className="ml-1 text-gray-400 font-normal">(meter)</span>
               </label>
-
-              {/* Number input */}
               <div className="flex items-center gap-3 mt-1">
-                <input
-                  type="number"
-                  min={10}
-                  max={5000}
-                  value={form.wfhRadius}
+                <input type="number" min={10} max={5000} value={form.wfhRadius}
                   onChange={e => setForm(f => ({ ...f, wfhRadius: e.target.value }))}
-                  className={`${inputCls} w-40`}
-                />
+                  className={`${inputCls} w-40`} />
                 <span className="text-sm text-gray-500">meter</span>
               </div>
-
-              {/* Slider */}
-              <input
-                type="range"
-                min={10}
-                max={2000}
-                step={10}
-                value={form.wfhRadius}
+              <input type="range" min={10} max={2000} step={10} value={form.wfhRadius}
                 onChange={e => setForm(f => ({ ...f, wfhRadius: Number(e.target.value) }))}
-                className="w-full mt-3 accent-green-600"
-              />
+                className="w-full mt-3 accent-green-600" />
               <div className="flex justify-between text-xs text-gray-400 mt-0.5">
-                <span>10 m</span>
-                <span>2000 m</span>
+                <span>10 m</span><span>2000 m</span>
               </div>
-
-              {/* Quick presets */}
               <div className="flex flex-wrap gap-2 mt-3">
                 {RADIUS_PRESETS.map(r => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, wfhRadius: r }))}
+                  <button key={r} type="button" onClick={() => setForm(f => ({ ...f, wfhRadius: r }))}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                       Number(form.wfhRadius) === r
                         ? 'bg-green-600 text-white border-green-600'
                         : 'bg-white text-gray-600 border-gray-300 hover:border-green-400 hover:text-green-600'
-                    }`}
-                  >
+                    }`}>
                     {r >= 1000 ? `${r / 1000} km` : `${r} m`}
                   </button>
                 ))}
               </div>
-
-              <p className="mt-3 text-xs text-gray-400 leading-relaxed">
-                Karyawan yang check-in WFH dengan jarak lebih dari{' '}
-                <span className="font-semibold text-gray-600">
-                  {form.wfhRadius >= 1000 ? `${form.wfhRadius / 1000} km` : `${form.wfhRadius} m`}
-                </span>{' '}
-                dari alamat rumah akan mendapat peringatan.
-              </p>
-
               <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-xs text-blue-700 flex items-start gap-2">
                   <HiOutlineHome className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>
-                    <strong className="font-semibold">Catatan:</strong> Pastikan setiap karyawan telah mengisi 
-                    alamat rumah (homeAddress) pada profile mereka. Jika belum diisi, validasi WFH akan dilewati.
+                    <strong>Catatan:</strong> Pastikan setiap karyawan telah mengisi alamat rumah pada profile mereka.
+                    Jika belum diisi, validasi WFH akan dilewati.
                   </span>
                 </p>
               </div>
             </div>
           </div>
-
-          {/* Right: visual ring preview */}
           <div className="flex flex-col items-center justify-center gap-3 min-w-[180px]">
             <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Preview</p>
             <div className="relative flex items-center justify-center" style={{ width: 160, height: 160 }}>
-              <div
-                className="absolute rounded-full border-2 border-dashed border-green-300 bg-green-50/40 transition-all duration-300"
-                style={{ width: wfhPreviewPx * 2, height: wfhPreviewPx * 2 }}
-              />
+              <div className="absolute rounded-full border-2 border-dashed border-green-300 bg-green-50/40 transition-all duration-300"
+                style={{ width: wfhPreviewPx * 2, height: wfhPreviewPx * 2 }} />
               <div className="relative z-10 w-9 h-9 bg-green-600 rounded-full flex items-center justify-center shadow-lg">
                 <HiOutlineHome className="w-5 h-5 text-white" />
               </div>
@@ -531,7 +551,8 @@ const CalendarSettings = ({ showToast }) => {
             </div>
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
-              <button onClick={handleSave} disabled={!form.eventDate || !form.eventName.trim() || saving} className="px-5 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
+              <button onClick={handleSave} disabled={!form.eventDate || !form.eventName.trim() || saving}
+                className="px-5 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
                 {saving ? 'Saving…' : editEvent ? 'Save Changes' : 'Add Event'}
               </button>
             </div>
@@ -656,7 +677,8 @@ const TimeOffSettings = ({ showToast }) => {
             </div>
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
-              <button onClick={handleSave} disabled={!form.name.trim() || saving} className="px-5 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
+              <button onClick={handleSave} disabled={!form.name.trim() || saving}
+                className="px-5 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
                 {saving ? 'Saving…' : editType ? 'Save Changes' : 'Add Type'}
               </button>
             </div>

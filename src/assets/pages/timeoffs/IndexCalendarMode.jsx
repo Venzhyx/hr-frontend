@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   HiOutlineChevronLeft, HiOutlineChevronRight, HiOutlineX,
@@ -20,14 +20,11 @@ const STATUS_PILL = {
   REJECTED:  { bg: "bg-red-50",     text: "text-red-700",     border: "border-red-200",     dot: "bg-red-500",     label: "Rejected" },
 };
 
-// National Holiday  → orange (beda dari rose/red)
-// Collective Leave  → emerald (beda dari teal/indigo)
 const EVENT_PILL = {
   NATIONAL_HOLIDAY:     { bg: "bg-orange-50",  text: "text-orange-800",  border: "border-orange-200",  dot: "bg-orange-500",  label: "National Holiday" },
   COLLECTIVE_LEAVE_DAY: { bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200", dot: "bg-emerald-500", label: "Collective Leave" },
 };
 
-// Legend — 5 warna semua berbeda
 const LEGEND_ITEMS = [
   { dot: "bg-indigo-500",  bg: "bg-indigo-50",  border: "border-indigo-100",  text: "text-indigo-700",  label: "Approved"         },
   { dot: "bg-amber-400",   bg: "bg-amber-50",   border: "border-amber-100",   text: "text-amber-700",   label: "Pending"          },
@@ -43,6 +40,20 @@ const SIDE_CARDS = [
   { key:"collective", Icon: HiOutlineUserGroup,   iconBg: "bg-orange-100",  iconColor: "text-orange-600",  cardBg: "bg-orange-50/60",  border: "border-orange-100"  },
   { key:"national",   Icon: HiOutlineFlag,        iconBg: "bg-red-100",     iconColor: "text-red-600",     cardBg: "bg-red-50/60",     border: "border-red-100"     },
 ];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Ambil user yang sedang login dari localStorage.
+ * Mendukung key "user" dan "hr_user".
+ */
+const getLoggedInUser = () => {
+  try {
+    const raw = localStorage.getItem("user") || localStorage.getItem("hr_user");
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return null;
+};
 
 const isoDate = (d) => {
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
@@ -128,13 +139,11 @@ const MonthView = ({ year, month, eventMap, onDayClick }) => {
 
   return (
     <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm h-full flex flex-col">
-      {/* Day name header */}
       <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-100 flex-shrink-0">
         {DAY_NAMES.map((d,i)=>(
           <div key={d} className={`py-2.5 text-center text-xs font-semibold tracking-wide ${i>=5?"text-gray-300":"text-gray-500"}`}>{d}</div>
         ))}
       </div>
-      {/* Cells — flex-grow agar mengisi sisa tinggi */}
       <div className="grid grid-cols-7 flex-1" style={{ gridTemplateRows: `repeat(${totalRows}, 1fr)` }}>
         {cells.map((cell,idx)=>{
           const items=cell.dateStr?(eventMap[cell.dateStr]||[]):[];
@@ -302,42 +311,82 @@ const TimeOffCalendarPage = () => {
   const { timeOffRequests, fetchTimeOffRequests } = useTimeOff();
   const { events: calEvents, fetchEvents }        = useCalendarEvent();
 
+  // ── Deteksi role ──────────────────────────────────────────────────────────
+  const loggedInUser = useMemo(() => getLoggedInUser(), []);
+  const isAdmin      = loggedInUser?.role === "ADMIN";
+
   const [view,     setView]     = useState("Month");
   const [curDate,  setCurDate]  = useState(new Date(TODAY));
   const [curMonth, setCurMonth] = useState(TODAY.getMonth());
   const [curYear,  setCurYear]  = useState(TODAY.getFullYear());
   const [popup,    setPopup]    = useState(null);
 
-  // Refs untuk mengukur tinggi sidebar agar kalender menyamakan
   const sidebarRef  = useRef(null);
   const [calHeight, setCalHeight] = useState(null);
 
   useEffect(() => { fetchTimeOffRequests(); fetchEvents(); }, []);
 
-  // Setelah render, ukur tinggi sidebar → pakai untuk tinggi kalender
   useEffect(() => {
     const measure = () => {
-      if (sidebarRef.current) {
-        setCalHeight(sidebarRef.current.scrollHeight);
-      }
+      if (sidebarRef.current) setCalHeight(sidebarRef.current.scrollHeight);
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, []);
 
+  // ── Filter time-off requests berdasarkan role ─────────────────────────────
+  /**
+   * EMPLOYEE : hanya tampilkan request milik diri sendiri.
+   * ADMIN    : tampilkan semua request.
+   *
+   * Dalam kedua kasus, calEvents (national holiday & collective leave)
+   * tetap ditampilkan penuh karena bersumber dari settings, bukan dari
+   * request karyawan.
+   */
+  const visibleRequests = useMemo(() => {
+    const all = timeOffRequests || [];
+    if (isAdmin) return all;
+
+    // Cari ID milik user yang login
+    const selfId = loggedInUser?.employeeId ?? loggedInUser?.id ?? null;
+    if (!selfId) return [];
+
+    return all.filter(
+      (r) =>
+        String(r.employeeId) === String(selfId) ||
+        String(r.userId)     === String(selfId)
+    );
+  }, [timeOffRequests, isAdmin, loggedInUser]);
+
+  // ── Stats (dihitung dari visibleRequests agar konsisten) ──────────────────
   const todayStr       = isoDate(TODAY);
-  const pending        = (timeOffRequests||[]).filter(r=>r.status==="SUBMITTED").length;
-  const booked         = (timeOffRequests||[]).filter(r=>r.status==="APPROVED").reduce((s,r)=>s+(r.requested||0),0);
-  const collective     = (calEvents||[]).filter(e=>e.eventType==="COLLECTIVE_LEAVE_DAY");
-  const national       = (calEvents||[]).filter(e=>e.eventType==="NATIONAL_HOLIDAY");
-  const collectiveLeft = collective.filter(e=>e.eventDate>=todayStr).length;
+  const pending        = visibleRequests.filter(r => r.status === "SUBMITTED").length;
+  const booked         = visibleRequests.filter(r => r.status === "APPROVED").reduce((s,r) => s + (r.requested || 0), 0);
+  const collective     = (calEvents || []).filter(e => e.eventType === "COLLECTIVE_LEAVE_DAY");
+  const national       = (calEvents || []).filter(e => e.eventType === "NATIONAL_HOLIDAY");
+  const collectiveLeft = collective.filter(e => e.eventDate >= todayStr).length;
 
-  const eventMap={};
-  const add=(d,item)=>{if(!eventMap[d])eventMap[d]=[];eventMap[d].push(item);};
-  (timeOffRequests||[]).forEach(r=>{if(r.startDate&&r.endDate)dateRange(r.startDate,r.endDate).forEach(d=>add(d,{...r,_type:"timeoff"}));});
-  (calEvents||[]).forEach(e=>{if(e.eventDate)add(e.eventDate,{...e,_type:"event"});});
+  // ── Build eventMap ─────────────────────────────────────────────────────────
+  // Time-off request → hanya visibleRequests
+  // Calendar events  → semua (national holiday & collective leave dari settings)
+  const eventMap = useMemo(() => {
+    const map = {};
+    const add = (d, item) => { if (!map[d]) map[d] = []; map[d].push(item); };
 
+    visibleRequests.forEach(r => {
+      if (r.startDate && r.endDate)
+        dateRange(r.startDate, r.endDate).forEach(d => add(d, { ...r, _type: "timeoff" }));
+    });
+
+    (calEvents || []).forEach(e => {
+      if (e.eventDate) add(e.eventDate, { ...e, _type: "event" });
+    });
+
+    return map;
+  }, [visibleRequests, calEvents]);
+
+  // ── Nav helpers ───────────────────────────────────────────────────────────
   const goToday=()=>{const t=new Date(TODAY);setCurDate(t);setCurMonth(t.getMonth());setCurYear(t.getFullYear());};
   const prev=()=>{
     if(view==="Month"){if(curMonth===0){setCurMonth(11);setCurYear(y=>y-1);}else setCurMonth(m=>m-1);}
@@ -365,7 +414,7 @@ const TimeOffCalendarPage = () => {
 
   const cardData=[
     {...SIDE_CARDS[0], value:DAYS_AVAIL,     label:"days available",    desc:"Paid time off to book",                              onClick:undefined},
-    {...SIDE_CARDS[1], value:pending,         label:"pending approval",  desc:"Awaiting manager review",                            onClick:pending>0?()=>navigate("/approvals/timeoff"):undefined},
+    {...SIDE_CARDS[1], value:pending,         label:"pending approval",  desc:"Awaiting manager review",                            onClick:pending>0?(isAdmin?()=>navigate("/approvals/timeoff"):undefined):undefined},
     {...SIDE_CARDS[2], value:booked,          label:"days booked",       desc:"Total approved leave",                               onClick:undefined},
     {...SIDE_CARDS[3], value:collectiveLeft,  label:"collective leave",  desc:`${collective.length-collectiveLeft} already passed`, onClick:undefined},
     {...SIDE_CARDS[4], value:national.length, label:"national holidays", desc:"This year",                                         onClick:undefined},
@@ -373,21 +422,19 @@ const TimeOffCalendarPage = () => {
 
   return (
     <div className="w-full px-4 md:px-5 py-3">
-      {/*
-        Wrapper utama: flex row, tidak lagi full-viewport-height.
-        Sidebar menentukan tinggi alami, kalender menyesuaikan.
-      */}
       <div className="flex gap-4 items-start">
 
         {/* ── SIDEBAR ── */}
         <div ref={sidebarRef} className="w-56 flex-shrink-0 flex flex-col gap-2 pb-2 pr-0.5">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Your time off</p>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            {isAdmin ? "Time off overview" : "Your time off"}
+          </p>
 
           <div className="space-y-1.5">
             {cardData.map((c,i)=><SideCard key={i} {...c} />)}
           </div>
 
-          {/* Upcoming holidays */}
+          {/* Upcoming holidays — selalu tampil (data dari settings) */}
           {upcomingHolidays.length>0&&(
             <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
               <div className="flex items-center gap-1.5 mb-2">
@@ -408,7 +455,7 @@ const TimeOffCalendarPage = () => {
             </div>
           )}
 
-          {/* Legend card — 5 warna semua beda */}
+          {/* Legend */}
           <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
             <div className="flex items-center gap-1.5 mb-2">
               <div className="w-3 h-3 rounded-sm bg-indigo-200" />
@@ -426,10 +473,6 @@ const TimeOffCalendarPage = () => {
         </div>
 
         {/* ── CALENDAR AREA ── */}
-        {/*
-          Tinggi kalender = tinggi sidebar yang sudah diukur via ref.
-          Kalender tidak akan berubah ukuran — ia fixed ke tinggi sidebar.
-        */}
         <div
           className="flex-1 min-w-0 flex flex-col"
           style={calHeight ? { height: calHeight } : { minHeight: 600 }}
@@ -452,7 +495,6 @@ const TimeOffCalendarPage = () => {
             <h2 className="text-sm font-bold text-gray-800">{headerTitle()}</h2>
 
             <div className="flex items-center gap-2">
-              {/* ── TOMBOL ADD — diperbesar & lebih bold ── */}
               <button
                 onClick={()=>navigate("/time-off/add")}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-bold rounded-xl transition-colors shadow-md"
@@ -460,8 +502,6 @@ const TimeOffCalendarPage = () => {
                 <HiOutlinePlus className="w-4 h-4" />
                 Add Time Off
               </button>
-
-              {/* View switcher */}
               <div className="flex items-center bg-gray-100 rounded-xl p-1">
                 {["Day","Week","Month"].map(v=>(
                   <button key={v} onClick={()=>setView(v)}
@@ -473,7 +513,7 @@ const TimeOffCalendarPage = () => {
             </div>
           </div>
 
-          {/* View content — flex-1 agar mengisi sisa tinggi calendar area */}
+          {/* View content */}
           <div className="flex-1 min-h-0">
             {view==="Month"&&(
               <MonthView

@@ -170,90 +170,29 @@ const DeleteModal = ({ item, onClose, onConfirm, isDeleting, deleteError, itemLa
 
 // ─── Employee Dropdown ────────────────────────────────────────────────────────
 
-const EmployeeDropdown = ({ employees, loadingEmployees, selectedEmployee, onChange, error, disabled = false }) => {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setSearch(""); }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return employees;
-    const q = search.toLowerCase();
-    return employees.filter(
-      (e) => e.name?.toLowerCase().includes(q) || e.employeeIdentificationNumber?.toLowerCase().includes(q)
-    );
-  }, [employees, search]);
-
+const EmployeeDropdown = ({ selectedEmployee, error }) => {
   return (
-    <div className="relative w-full" ref={ref}>
+    <div className="relative w-full">
       <button
-        type="button" onClick={() => !disabled && setOpen((p) => !p)}
-        className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 border rounded-xl shadow-sm hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm ${
-          error ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"
-        } ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
-        disabled={disabled}
+        type="button"
+        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 border rounded-xl shadow-sm text-sm border-gray-200 bg-gray-50 opacity-80 cursor-not-allowed"
+        disabled={true}
       >
         <div className="flex items-center gap-2 min-w-0">
           <HiOutlineUser className="w-4 h-4 text-gray-400 flex-shrink-0" />
           {selectedEmployee ? (
             <span className="truncate text-gray-800 font-medium">
               {selectedEmployee.name}
-              <span className="ml-1.5 text-gray-400 font-normal font-mono text-xs">({selectedEmployee.employeeIdentificationNumber})</span>
+              {selectedEmployee.employeeIdentificationNumber && (
+                <span className="ml-1.5 text-gray-400 font-normal font-mono text-xs">({selectedEmployee.employeeIdentificationNumber})</span>
+              )}
             </span>
           ) : (
-            <span className="text-gray-400">{loadingEmployees ? "Memuat karyawan…" : "Pilih karyawan"}</span>
+            <span className="text-gray-400">Pilih karyawan</span>
           )}
         </div>
-        {!disabled && <HiOutlineChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />}
+        <HiOutlineLockClosed className="w-4 h-4 text-gray-400 flex-shrink-0" />
       </button>
-
-      {open && !disabled && (
-        <div className="absolute z-30 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-          <div className="p-2 border-b border-gray-100">
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-              <HiOutlineSearch className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <input autoFocus type="text" placeholder="Cari nama atau NIK…" value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-            </div>
-          </div>
-          <ul className="max-h-56 overflow-y-auto">
-            {loadingEmployees ? (
-              <li className="px-4 py-3 text-sm text-gray-400 text-center">Memuat…</li>
-            ) : filtered.length === 0 ? (
-              <li className="px-4 py-3 text-sm text-gray-400 text-center">Tidak ditemukan</li>
-            ) : (
-              filtered.map((emp) => {
-                const isActive = emp.id === selectedEmployee?.id;
-                return (
-                  <li key={emp.id}>
-                    <button type="button"
-                      onClick={() => { onChange(emp); setOpen(false); setSearch(""); }}
-                      className={`w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-indigo-50 transition-colors ${isActive ? "bg-indigo-50" : ""}`}>
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isActive ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500"}`}>
-                        {emp.name?.charAt(0)?.toUpperCase() || "?"}
-                      </div>
-                      <div className="min-w-0">
-                        <p className={`text-sm font-medium truncate ${isActive ? "text-indigo-700" : "text-gray-800"}`}>{emp.name}</p>
-                        <p className="text-xs text-gray-400 font-mono">
-                          {emp.employeeIdentificationNumber}{emp.departmentName && ` · ${emp.departmentName}`}
-                        </p>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-        </div>
-      )}
     </div>
   );
 };
@@ -331,11 +270,21 @@ const ApprovalTimeline = ({ approvals = [] }) => {
     return { level, record };
   });
 
+  const getLockState = (idx) => {
+    if (idx === 0) return false;
+    for (let i = 0; i < idx; i++) {
+      const rec = levels[i].record;
+      if (!rec || rec.status !== "APPROVED") return true;
+    }
+    return false;
+  };
+
   return (
     <div className="space-y-0">
       {levels.map(({ level, record }, idx) => {
+        const isLocked = getLockState(idx);
         const isLast = idx === levels.length - 1;
-        const status = record?.status || "WAITING";
+        const status = record?.status || (isLocked ? "LOCKED" : "WAITING");
         const approverName = record?.approverName || record?.employeeName || null;
         const actionAt = record?.approvedAt || null;
         const notes = record?.notes || null;
@@ -349,6 +298,10 @@ const ApprovalTimeline = ({ approvals = [] }) => {
           iconEl = <HiOutlineXCircle className="w-4 h-4 text-red-500" />;
           iconWrap = "bg-red-50 border-red-300";
           lineColor = "bg-gray-200";
+        } else if (status === "LOCKED") {
+          iconEl = <HiOutlineLockClosed className="w-4 h-4 text-gray-300" />;
+          iconWrap = "bg-gray-50 border-gray-200";
+          lineColor = "bg-gray-100";
         } else {
           iconEl = <HiOutlineClock className="w-4 h-4 text-amber-500" />;
           iconWrap = "bg-amber-50 border-amber-300";
@@ -369,11 +322,14 @@ const ApprovalTimeline = ({ approvals = [] }) => {
                 {status === "APPROVED" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Approved</span>}
                 {status === "REJECTED" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700">Rejected</span>}
                 {status === "WAITING" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Menunggu</span>}
+                {status === "LOCKED" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">Terkunci</span>}
               </div>
               {approverName ? (
                 <p className="text-sm font-semibold text-gray-800">{approverName}</p>
               ) : (
-                <p className="text-sm text-gray-400 italic">Belum ada approver</p>
+                <p className="text-sm text-gray-400 italic">
+                  {isLocked ? "Menunggu level sebelumnya" : "Belum ada approver"}
+                </p>
               )}
               {actionAt && (
                 <p className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1">
@@ -395,12 +351,11 @@ const ApprovalTimeline = ({ approvals = [] }) => {
 };
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
-const DetailModal = ({ overtime, onClose, onApprove, onReject, onEdit, onDelete, actionLoading, actionError, isAdmin, empPhoto }) => {
+const DetailModal = ({ overtime, onClose, onEdit, onDelete, actionLoading, actionError, empPhoto }) => {
   if (!overtime) return null;
 
   const displayStatus = getDisplayStatus(overtime);
   const sCfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG.SUBMITTED;
-  const canAct = isAdmin && (displayStatus === "SUBMITTED" || displayStatus === "PENDING");
   const canEdit = displayStatus === "SUBMITTED";
   const canDelete = displayStatus === "SUBMITTED";
   const initials = overtime.employeeName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
@@ -529,7 +484,7 @@ const DetailModal = ({ overtime, onClose, onApprove, onReject, onEdit, onDelete,
                 {overtime.employeeCode && <p className="text-xs text-gray-500 mt-0.5">NIK: {overtime.employeeCode}</p>}
                 {overtime.departmentName && (
                   <p className="flex items-center gap-1 text-xs text-gray-400">
-                    <HiOutlineOfficeBuilding className="w-3 h-3" /> {overtime.departmentName}
+                     <HiOutlineOfficeBuilding className="w-3 h-3" /> {overtime.departmentName}
                   </p>
                 )}
               </div>
@@ -561,27 +516,10 @@ const DetailModal = ({ overtime, onClose, onApprove, onReject, onEdit, onDelete,
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0">
-          {canAct ? (
-            <div className="flex gap-3">
-              <button
-                onClick={() => onReject(overtime.id)} disabled={actionLoading}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50">
-                {actionLoading ? <Spinner /> : <HiOutlineX className="w-4 h-4" />}
-                Reject
-              </button>
-              <button
-                onClick={() => onApprove(overtime.id)} disabled={actionLoading}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50">
-                {actionLoading ? <Spinner /> : <HiOutlineCheck className="w-4 h-4" />}
-                Approve
-              </button>
-            </div>
-          ) : (
-            <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${sCfg.className}`}>
-              <span className={`w-2 h-2 rounded-full ${sCfg.dot}`} />
-              Request sudah {sCfg.label}
-            </div>
-          )}
+          <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border ${sCfg.className}`}>
+            <span className={`w-2 h-2 rounded-full ${sCfg.dot}`} />
+            Request Status: {sCfg.label}
+          </div>
         </div>
       </div>
     </div>
@@ -597,10 +535,7 @@ const OvertimeModal = ({
   onSubmit,
   isLoading,
   actionError,
-  employees,
-  loadingEmployees,
   selectedEmployee,
-  onEmployeeChange,
   initialDate,
   initialCheckOut,
   onClearInitialData,
@@ -622,10 +557,6 @@ const OvertimeModal = ({
         endTime: endTimeValue,
         description: initialData.description || "",
       });
-      if (onEmployeeChange) {
-        const emp = employees.find(e => e.id === initialData.employeeId);
-        if (emp) onEmployeeChange(emp);
-      }
     } else if (initialDate) {
       let formattedStartTime = "";
       if (initialCheckOut && initialCheckOut !== "—") {
@@ -633,11 +564,9 @@ const OvertimeModal = ({
       }
       setForm((prev) => ({ ...prev, startTime: formattedStartTime, endTime: "" }));
     }
-  }, [initialDate, initialCheckOut, mode, initialData, employees, onEmployeeChange]);
+  }, [initialDate, initialCheckOut, mode, initialData]);
 
-  const hasEmployeeError = !selectedEmployee;
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
-  const today = new Date().toISOString().split("T")[0];
   const isEdit = mode === "edit";
 
   const handleSubmit = async (e) => {
@@ -663,7 +592,7 @@ const OvertimeModal = ({
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
           <div>
             <h2 className="text-lg font-bold text-gray-900">{isEdit ? "Edit Pengajuan Lembur" : "Ajukan Lembur"}</h2>
-            <p className="text-sm text-gray-500 mt-0.5">{isEdit ? "Ubah detail pengajuan lembur" : "Isi detail pengajuan lembur karyawan"}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{isEdit ? "Ubah detail pengajuan lembur" : "Isi detail pengajuan lembur kamu"}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
             <HiOutlineX className="w-5 h-5 text-gray-500" />
@@ -682,18 +611,9 @@ const OvertimeModal = ({
               Karyawan <span className="text-red-500">*</span>
             </label>
             <EmployeeDropdown
-              employees={employees}
-              loadingEmployees={loadingEmployees}
               selectedEmployee={selectedEmployee}
-              onChange={onEmployeeChange}
-              error={hasEmployeeError}
-              disabled={isEdit}
+              error={false}
             />
-            {hasEmployeeError && (
-              <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
-                <HiOutlineExclamationCircle className="w-3.5 h-3.5" />Silakan pilih karyawan terlebih dahulu
-              </p>
-            )}
           </div>
 
           <div>
@@ -762,31 +682,39 @@ const OvertimeModal = ({
   );
 };
 
-const EmptyState = ({ onNew, isAdmin }) => (
+const EmptyState = ({ onNew }) => (
   <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
     <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4">
       <HiOutlineClipboardList className="w-8 h-8 text-indigo-400" />
     </div>
     <h3 className="text-base font-semibold text-gray-800 mb-1">Belum ada data lembur</h3>
     <p className="text-sm text-gray-400 max-w-xs">
-      {isAdmin ? "Belum ada pengajuan lembur dari karyawan." : "Ajukan lembur jika kamu bekerja di luar jam kerja normal."}
+      Ajukan lembur jika kamu bekerja di luar jam kerja normal.
     </p>
-    {!isAdmin && (
-      <button onClick={onNew}
-        className="mt-6 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors">
-        <HiOutlinePlus className="w-4 h-4" />Ajukan Lembur Pertama
-      </button>
-    )}
+    <button onClick={onNew}
+      className="mt-6 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors">
+      <HiOutlinePlus className="w-4 h-4" />Ajukan Lembur Pertama
+    </button>
   </div>
 );
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
+const EmployeeOvertime = () => {
+  const role = "employee";
   const location = useLocation();
-  const isAdmin = role === "admin";
 
-  const { employees, loadingEmployees, fetchEmployees } = useEmployee();
+  const loggedInUser = useMemo(() => {
+    try {
+      const userStr = localStorage.getItem("user") || localStorage.getItem("hr_user");
+      if (userStr) return JSON.parse(userStr);
+    } catch (e) {}
+    return null;
+  }, []);
+
+  const employeeId = loggedInUser?.employeeId || null;
+
+  const { employees, fetchEmployees } = useEmployee();
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [autoOpenModal, setAutoOpenModal] = useState(false);
   const [initialModalData, setInitialModalData] = useState({ date: "", checkOut: "" });
@@ -801,9 +729,9 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
     overtimes, loading, error, actionLoading, actionError,
     isModalOpen, isDetailModalOpen, selectedOvertime, filterStatus, filterType,
     fetchOvertimes, openCreateModal, closeCreateModal, openDetailModal, closeDetailModal,
-    setFilterStatus, setFilterType, handleCreate, handleApprove, handleReject, handleRefresh,
+    setFilterStatus, setFilterType, handleCreate, handleRefresh,
     handleUpdate, handleDelete,
-  } = useOvertime({ role, employeeId, adminId });
+  } = useOvertime({ role, employeeId });
 
   // ─── empMap: lookup employee by id for photo ──────────────────────────────
   const empMap = useMemo(() => {
@@ -812,17 +740,32 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
     return m;
   }, [employees]);
 
+  // Set selectedEmployee to logged-in user profile
+  useEffect(() => {
+    if (loggedInUser?.employeeId) {
+      const basicProfile = {
+        id: loggedInUser.employeeId,
+        name: loggedInUser.name || loggedInUser.username || "Saya",
+        employeeIdentificationNumber: loggedInUser.employeeIdentificationNumber || "",
+      };
+      setSelectedEmployee(basicProfile);
+    }
+  }, [loggedInUser]);
+
+  // Sync selectedEmployee with detailed list if found
+  useEffect(() => {
+    if (loggedInUser?.employeeId && employees?.length > 0) {
+      const myEmp = employees.find((e) => Number(e.id) === Number(loggedInUser.employeeId));
+      if (myEmp) {
+        setSelectedEmployee(myEmp);
+      }
+    }
+  }, [loggedInUser, employees]);
+
   useEffect(() => {
     fetchEmployees();
     fetchOvertimes();
   }, []);
-
-  useEffect(() => {
-    if (employeeId && employees.length > 0 && !selectedEmployee) {
-      const emp = employees.find((e) => e.id === Number(employeeId));
-      if (emp) setSelectedEmployee(emp);
-    }
-  }, [employeeId, employees, selectedEmployee]);
 
   const hasProcessedRef = useRef(false);
   useEffect(() => {
@@ -832,13 +775,7 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
       setAutoOpenModal(true);
       const selectedDate = state.selectedDate || "";
       const attendanceData = state.attendanceData || {};
-      const navEmployeeId = state.employeeId;
-
-      if (navEmployeeId && employees.length > 0) {
-        const emp = employees.find((e) => e.id === Number(navEmployeeId));
-        if (emp) setSelectedEmployee(emp);
-      }
-
+      
       let checkOutTime = "";
       if (attendanceData.checkOut) {
         try {
@@ -850,7 +787,7 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
       setInitialModalData({ date: selectedDate, checkOut: checkOutTime });
       window.history.replaceState({}, document.title);
     }
-  }, [location, employees]);
+  }, [location]);
 
   useEffect(() => {
     if (autoOpenModal && !isModalOpen) { openCreateModal(); setAutoOpenModal(false); }
@@ -865,7 +802,6 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
 
   const handleEdit = (overtime) => {
     setEditingOvertime(overtime);
-    setSelectedEmployee(employees.find(e => e.id === overtime.employeeId));
     setEditMode(true);
     openCreateModal();
   };
@@ -933,20 +869,18 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Overtime</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Kelola pengajuan dan rekap lembur karyawan</p>
+          <h1 className="text-2xl font-bold text-gray-900">Overtime Saya</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Ajukan dan pantau status lembur kamu</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleRefresh}
             className="p-2.5 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 transition-colors" title="Refresh">
             <HiOutlineRefresh className="w-4 h-4" />
           </button>
-          {!isAdmin && (
-            <button onClick={openCreateModal}
-              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
-              <HiOutlinePlus className="w-4 h-4" />Ajukan Lembur
-            </button>
-          )}
+          <button onClick={openCreateModal}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+            <HiOutlinePlus className="w-4 h-4" />Ajukan Lembur
+          </button>
         </div>
       </div>
 
@@ -986,7 +920,7 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
             <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : overtimes.length === 0 ? (
-          <EmptyState onNew={openCreateModal} isAdmin={isAdmin} />
+          <EmptyState onNew={openCreateModal} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1039,39 +973,50 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                          o.type === "HOLIDAY" ? "bg-orange-50 text-orange-700" : "bg-indigo-50 text-indigo-700"
-                        }`}>
-                          {TYPE_LABELS[o.type] ?? o.type}
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          {TYPE_LABELS[o.type] || o.type}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-gray-600 text-sm font-mono">
+                      <td className="px-5 py-3.5 text-gray-700 text-sm">
                         {o.startTime ? format(new Date(o.startTime), "HH:mm") : "—"}
                       </td>
-                      <td className="px-5 py-3.5 text-gray-600 text-sm font-mono">
+                      <td className="px-5 py-3.5 text-gray-700 text-sm">
                         {o.endTime ? format(new Date(o.endTime), "HH:mm") : "—"}
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold">
-                          <HiOutlineClock className="w-3 h-3" />{fmtHours(o.totalHours)}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold">
+                          {fmtHours(o.totalHours)}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5"><StatusBadge overtime={o} /></td>
-                      <td className="px-5 py-3.5 text-gray-400 text-xs">{fmt(o.createdAt)}</td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => openDetailModal(o)}
-                            className="p-1.5 hover:bg-indigo-50 rounded-lg transition-colors text-gray-400 hover:text-indigo-600" title="Lihat detail">
+                        <StatusBadge overtime={o} />
+                      </td>
+                      <td className="px-5 py-3.5 text-gray-500 text-xs">
+                        {fmtDateTime(o.createdAt)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openDetailModal(o)}
+                            className="text-gray-400 hover:text-indigo-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Detail"
+                          >
                             <HiOutlineEye className="w-4 h-4" />
                           </button>
-                          {canEditDelete && !isAdmin && (
+                          {canEditDelete && (
                             <>
-                              <button onClick={() => handleEdit(o)}
-                                className="p-1.5 hover:bg-amber-50 rounded-lg transition-colors text-gray-400 hover:text-amber-600" title="Edit">
+                              <button
+                                onClick={() => handleEdit(o)}
+                                className="text-gray-400 hover:text-amber-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Edit"
+                              >
                                 <HiOutlinePencilAlt className="w-4 h-4" />
                               </button>
-                              <button onClick={() => handleDeleteClick(o)}
-                                className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-gray-400 hover:text-red-600" title="Hapus">
+                              <button
+                                onClick={() => handleDeleteClick(o)}
+                                className="text-gray-400 hover:text-red-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Hapus"
+                              >
                                 <HiOutlineTrash className="w-4 h-4" />
                               </button>
                             </>
@@ -1087,7 +1032,7 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
         )}
       </div>
 
-      {(isModalOpen || autoOpenModal) && (
+      {isModalOpen && (
         <OvertimeModal
           mode={editMode ? "edit" : "create"}
           initialData={editingOvertime}
@@ -1095,43 +1040,36 @@ const Overtime = ({ role = "admin", employeeId = null, adminId }) => {
           onSubmit={editMode ? handleUpdateSubmit : handleCreate}
           isLoading={actionLoading}
           actionError={actionError}
-          employees={employees}
-          loadingEmployees={loadingEmployees}
           selectedEmployee={selectedEmployee}
-          onEmployeeChange={setSelectedEmployee}
           initialDate={initialModalData.date}
           initialCheckOut={initialModalData.checkOut}
-          onClearInitialData={() => setInitialModalData({ date: "", checkOut: "" })}
+          onClearInitialData={handleCloseModal}
         />
       )}
 
-      {isDetailModalOpen && (
+      {isDetailModalOpen && selectedOvertime && (
         <DetailModal
           overtime={selectedOvertime}
           onClose={closeDetailModal}
-          onApprove={handleApprove}
-          onReject={handleReject}
           onEdit={handleEdit}
           onDelete={handleDeleteClick}
           actionLoading={actionLoading}
           actionError={actionError}
-          isAdmin={isAdmin}
-          empPhoto={selectedOvertime ? getEmpPhoto(empMap[String(selectedOvertime.employeeId)]) : null}
+          empPhoto={getEmpPhoto(empMap[String(selectedOvertime.employeeId)])}
         />
       )}
 
-      {showDeleteModal && (
+      {showDeleteModal && deletingItem && (
         <DeleteModal
           item={deletingItem}
           onClose={handleCancelDelete}
           onConfirm={handleConfirmDelete}
-          isDeleting={deletingId === deletingItem?.id}
+          isDeleting={deletingId === deletingItem.id}
           deleteError={deleteError}
-          itemLabel="pengajuan lembur"
         />
       )}
     </div>
   );
 };
 
-export default Overtime;
+export default EmployeeOvertime;

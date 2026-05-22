@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   HiOutlineArrowLeft, HiOutlinePaperClip, HiOutlineX,
@@ -27,6 +27,15 @@ const uploadFile = async (file) => {
   const res = await API.post("/files/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
   const json = res.data;
   return json.data?.fileUrl || json.data?.url || json.data;
+};
+
+// ── Ambil user login dari localStorage ───────────────────────────────────────
+const getLoggedInUser = () => {
+  try {
+    const raw = localStorage.getItem("user") || localStorage.getItem("hr_user");
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return null;
 };
 
 const fieldValidators = {
@@ -83,7 +92,6 @@ const ReceiptModal = ({ url, onClose }) => {
 };
 
 // ==================== APPROVAL NOTES READ-ONLY ====================
-// Ditampilkan di Edit page (karyawan) — tidak bisa diubah
 const ApprovalNotesReadOnly = ({ notes, status }) => {
   if (!notes) return null;
 
@@ -103,7 +111,6 @@ const ApprovalNotesReadOnly = ({ notes, status }) => {
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeCls}`}>
           {isApproved ? "Approved" : "Rejected"}
         </span>
-        {/* Read-only badge */}
         <span className="ml-auto flex items-center gap-1 text-xs text-gray-400">
           <HiOutlineLockClosed className="w-3 h-3" /> Read-only
         </span>
@@ -127,6 +134,14 @@ const EditReimbursement = () => {
   const { getReimbursementById, updateReimbursement } = useReimbursement();
   const { employees, fetchEmployees }                 = useEmployee();
 
+  // ── Role detection ────────────────────────────────────────────────────────
+  const loggedInUser   = useMemo(() => getLoggedInUser(), []);
+  const isAdmin        = loggedInUser?.role === "ADMIN";
+  const selfEmployeeId = useMemo(
+    () => loggedInUser?.employeeId ?? loggedInUser?.id ?? null,
+    [loggedInUser]
+  );
+
   const [formData, setFormData] = useState({
     title: "", expenseDate: "", category: "", total: "",
     employeeId: "", paidBy: "EMPLOYEE", notes: "",
@@ -145,11 +160,15 @@ const EditReimbursement = () => {
   const [dragOver,         setDragOver]         = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
+  // ── Nama karyawan untuk tampilan locked field (EMPLOYEE role) ─────────────
+  const [selfEmployeeName, setSelfEmployeeName] = useState("");
+
   const previewUrl      = filePreview || (file ? null : existingReceipt);
   const isExistingImage = existingReceipt && /\.(jpg|jpeg|png)(\?|$)/i.test(existingReceipt);
   const isFilePdf       = file && file.type === "application/pdf";
   const isReviewed      = reimbStatus === "APPROVED" || reimbStatus === "REJECTED";
 
+  // ── Fetch data reimbursement + karyawan ───────────────────────────────────
   useEffect(() => {
     const init = async () => {
       try {
@@ -169,7 +188,10 @@ const EditReimbursement = () => {
           if (data.approvalNotes) setApprovalNotes(data.approvalNotes);
           if (data.status)        setReimbStatus(data.status);
         }
-        fetchEmployees();
+
+        // ADMIN: fetch semua karyawan untuk dropdown
+        if (isAdmin) fetchEmployees();
+
       } catch (err) {
         console.error("Failed to load:", err);
         setErrors({ submit: "Failed to load reimbursement data." });
@@ -180,6 +202,29 @@ const EditReimbursement = () => {
     if (id) init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // ── Fetch nama karyawan sendiri untuk EMPLOYEE (locked display) ───────────
+  useEffect(() => {
+    if (!isAdmin && selfEmployeeId) {
+      API.get(`/employees/${selfEmployeeId}`)
+        .then((res) => {
+          const emp = res.data?.data ?? res.data;
+          setSelfEmployeeName(emp?.name ?? emp?.fullName ?? emp?.fullname ?? "");
+        })
+        .catch(() => {
+          // fallback: fetch semua lalu filter
+          API.get("/employees")
+            .then((res) => {
+              const list = res.data?.data ?? res.data ?? [];
+              const me = Array.isArray(list)
+                ? list.find((e) => String(e.id) === String(selfEmployeeId))
+                : null;
+              if (me) setSelfEmployeeName(me.name ?? me.fullName ?? me.fullname ?? "");
+            })
+            .catch(() => {});
+        });
+    }
+  }, [isAdmin, selfEmployeeId]);
 
   const validateField = (name, value) => fieldValidators[name]?.(value) ?? null;
   const validateAll   = () => {
@@ -286,7 +331,7 @@ const EditReimbursement = () => {
           </div>
         </div>
 
-        {/* Approval notes read-only — tampil di atas form jika sudah direview */}
+        {/* Approval notes read-only */}
         {isReviewed && (
           <div className="mb-4">
             <ApprovalNotesReadOnly notes={approvalNotes} status={reimbStatus} />
@@ -354,20 +399,43 @@ const EditReimbursement = () => {
               <ErrorMsg field="total" />
             </div>
 
-            {/* Employee */}
+            {/* Employee — ADMIN: dropdown, EMPLOYEE: locked */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Employee <span className="text-red-500">*</span>
               </label>
-              <select name="employeeId" value={formData.employeeId}
-                onChange={handleChange} onBlur={handleBlur} disabled={busy}
-                className={selectCls("employeeId")} style={selectStyle}>
-                <option value="">Select Employee</option>
-                {activeEmployees.map(e => (
-                  <option key={e.id} value={e.id}>{e.name}{e.employeeCode ? ` (${e.employeeCode})` : ""}</option>
-                ))}
-              </select>
-              <ErrorMsg field="employeeId" />
+
+              {isAdmin ? (
+                /* ADMIN: bisa ganti karyawan */
+                <>
+                  <select name="employeeId" value={formData.employeeId}
+                    onChange={handleChange} onBlur={handleBlur} disabled={busy}
+                    className={selectCls("employeeId")} style={selectStyle}>
+                    <option value="">Select Employee</option>
+                    {activeEmployees.map(e => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}{e.employeeCode ? ` (${e.employeeCode})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ErrorMsg field="employeeId" />
+                </>
+              ) : (
+                /* EMPLOYEE: tampilkan nama karyawan, tidak bisa diubah */
+                <div className="relative">
+                  <div className={`${inputCls("employeeId")} flex items-center justify-between bg-gray-100 cursor-not-allowed`}>
+                    <span className="text-gray-700 font-medium truncate">
+                      {selfEmployeeName
+                        || loggedInUser?.name
+                        || loggedInUser?.fullName
+                        || `Employee #${selfEmployeeId}`}
+                    </span>
+                    <HiOutlineLockClosed className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
+                  </div>
+                  {/* hidden input agar formData.employeeId tetap terkirim */}
+                  <input type="hidden" name="employeeId" value={formData.employeeId} readOnly />
+                </div>
+              )}
             </div>
 
             {/* Paid By */}

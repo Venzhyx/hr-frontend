@@ -19,7 +19,6 @@ export const updateAttendanceSettings = createAsyncThunk(
   'attendanceSettings/update',
   async (payload, { rejectWithValue }) => {
     try {
-      // Konversi "HH:mm" → "HH:mm:ss" supaya backend (LocalTime) menerima dengan benar
       const normalized = {
         ...payload,
         checkInTime:  payload.checkInTime  ? toLocalTime(payload.checkInTime)  : undefined,
@@ -47,6 +46,11 @@ const DEFAULT_SETTINGS = {
   extraHoursValidation:           'APPROVED_BY_MANAGER',
   checkInTime:                    '08:00:00',
   checkOutTime:                   '17:00:00',
+  officeLatitude:                 null,
+  officeLongitude:                null,
+  wfoRadius:                      100,
+  wfhRadius:                      100,
+  mode:                           'OFFLINE',   // ← tambah mode
   createdAt:                      null,
   updatedAt:                      null,
 };

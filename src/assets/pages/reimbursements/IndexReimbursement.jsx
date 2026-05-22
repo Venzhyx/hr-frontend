@@ -24,6 +24,15 @@ const fmt = (n) =>
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
+// ── Ambil user login dari localStorage (konsisten dengan TimeOff) ─────────────
+const getLoggedInUser = () => {
+  try {
+    const raw = localStorage.getItem("user") || localStorage.getItem("hr_user");
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return null;
+};
+
 const Badge = ({ status }) => {
   const cfg = STATUS_CFG[status] || { label: status, cls: "bg-gray-100 text-gray-600 border-gray-200", dot: "bg-gray-400" };
   return (
@@ -34,7 +43,7 @@ const Badge = ({ status }) => {
   );
 };
 
-// ─── Delete Modal (konsisten dengan TimeOff) ────────────────────────────────────
+// ─── Delete Modal ─────────────────────────────────────────────────────────────
 const DeleteModal = ({ item, onClose, onConfirm, isDeleting, deleteError }) => {
   if (!item) return null;
 
@@ -116,7 +125,7 @@ const DeleteModal = ({ item, onClose, onConfirm, isDeleting, deleteError }) => {
   );
 };
 
-// ── Pagination Component ──────────────────────────────────────────────────────
+// ── Pagination ────────────────────────────────────────────────────────────────
 const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, pageSize }) => {
   const getPageNumbers = () => {
     const delta = 2;
@@ -132,11 +141,8 @@ const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, pageSiz
 
     range.forEach((i) => {
       if (l) {
-        if (i - l === 2) {
-          rangeWithDots.push(l + 1);
-        } else if (i - l !== 1) {
-          rangeWithDots.push('...');
-        }
+        if (i - l === 2) rangeWithDots.push(l + 1);
+        else if (i - l !== 1) rangeWithDots.push("...");
       }
       rangeWithDots.push(i);
       l = i;
@@ -175,8 +181,8 @@ const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, pageSiz
           <HiOutlineChevronLeft className="w-4 h-4" />
         </button>
 
-        {getPageNumbers().map((page, idx) => (
-          page === '...' ? (
+        {getPageNumbers().map((page, idx) =>
+          page === "..." ? (
             <span key={`dots-${idx}`} className="px-2 py-1 text-gray-400 text-sm">...</span>
           ) : (
             <button
@@ -191,7 +197,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, pageSiz
               {page}
             </button>
           )
-        ))}
+        )}
 
         <button
           onClick={() => onPageChange(currentPage + 1)}
@@ -231,10 +237,6 @@ const FilterDropdown = ({ activeFilters, onChange, counts }) => {
 
   const isAllActive = activeFilters.length === ALL_STATUSES.length;
 
-  const toggleAll = () => {
-    onChange(isAllActive ? ["SUBMITTED"] : [...ALL_STATUSES]);
-  };
-
   return (
     <div className="relative" ref={ref}>
       <button
@@ -263,7 +265,7 @@ const FilterDropdown = ({ activeFilters, onChange, counts }) => {
 
           <div className="py-1.5">
             <button
-              onClick={toggleAll}
+              onClick={() => onChange(isAllActive ? ["SUBMITTED"] : [...ALL_STATUSES])}
               className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 mb-1"
             >
               <span className={`w-4 h-4 rounded flex items-center justify-center border-2 flex-shrink-0 transition-colors ${
@@ -327,15 +329,20 @@ const ReimbursementIndex = () => {
   const navigate = useNavigate();
   const { reimbursements, fetchReimbursements, deleteReimbursement, loading } = useReimbursement();
 
-  const [search,        setSearch]        = useState("");
-  const [activeFilters, setActiveFilters] = useState(["SUBMITTED", "PENDING"]);
-  const [currentPage,   setCurrentPage]   = useState(1);
-  const [pageSize,      setPageSize]      = useState(10);
-  const [toast,         setToast]         = useState(null);
+  // ── Role detection (konsisten dengan TimeOff) ─────────────────────────────
+  const loggedInUser = useMemo(() => getLoggedInUser(), []);
+  const isAdmin      = loggedInUser?.role === "ADMIN";
+  const selfId       = loggedInUser?.employeeId ?? loggedInUser?.id ?? null;
+
+  const [search,          setSearch]          = useState("");
+  const [activeFilters,   setActiveFilters]   = useState([...ALL_STATUSES]);
+  const [currentPage,     setCurrentPage]     = useState(1);
+  const [pageSize,        setPageSize]        = useState(10);
+  const [toast,           setToast]           = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingItem,  setDeletingItem]  = useState(null);
-  const [deletingId,    setDeletingId]    = useState(null);
-  const [deleteError,   setDeleteError]   = useState("");
+  const [deletingItem,    setDeletingItem]    = useState(null);
+  const [deletingId,      setDeletingId]      = useState(null);
+  const [deleteError,     setDeleteError]     = useState("");
 
   useEffect(() => { fetchReimbursements(); }, []);
 
@@ -347,35 +354,41 @@ const ReimbursementIndex = () => {
     }
   }, []);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, activeFilters]);
+  useEffect(() => { setCurrentPage(1); }, [search, activeFilters]);
 
-  const counts = (reimbursements || []).reduce((acc, r) => {
+  // ── Filter berdasarkan role: EMPLOYEE hanya lihat data sendiri ────────────
+  const ownReimbursements = useMemo(() => {
+    const all = reimbursements || [];
+    if (isAdmin) return all;
+    if (!selfId) return [];
+    return all.filter(
+      (r) =>
+        String(r.employeeId) === String(selfId) ||
+        String(r.userId)     === String(selfId)
+    );
+  }, [reimbursements, isAdmin, selfId]);
+
+  const counts = ownReimbursements.reduce((acc, r) => {
     acc[r.status] = (acc[r.status] || 0) + 1;
     return acc;
   }, {});
 
   const filteredData = useMemo(() => {
-    return (reimbursements || []).filter(r => {
+    return ownReimbursements.filter((r) => {
       const q = search.toLowerCase();
       const matchSearch =
-        r.title?.toLowerCase().includes(q)    ||
-        r.category?.toLowerCase().includes(q) ||
+        r.title?.toLowerCase().includes(q)        ||
+        r.category?.toLowerCase().includes(q)     ||
         r.employeeName?.toLowerCase().includes(q);
       const matchStatus = activeFilters.includes(r.status);
       return matchSearch && matchStatus;
     });
-  }, [reimbursements, search, activeFilters]);
+  }, [ownReimbursements, search, activeFilters]);
 
-  const totalItems = filteredData.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
+  const totalItems   = filteredData.length;
+  const totalPages   = Math.ceil(totalItems / pageSize);
+  const startIndex   = (currentPage - 1) * pageSize;
   const paginatedData = filteredData.slice(startIndex, startIndex + pageSize);
-
-  const handleFilterChange = (filters) => {
-    setActiveFilters(filters);
-  };
 
   const handlePageSizeChange = (newSize) => {
     setPageSize(newSize);
@@ -393,7 +406,7 @@ const ReimbursementIndex = () => {
     setDeletingId(deletingItem.id);
     try {
       await deleteReimbursement(deletingItem.id);
-      setToast({ type: "success", message: "Reimbursement berhasil dibatalkan." });
+      setToast({ type: "success", message: "Reimbursement berhasil dihapus." });
       setTimeout(() => setToast(null), 3000);
       setShowDeleteModal(false);
       setDeletingItem(null);
@@ -435,6 +448,12 @@ const ReimbursementIndex = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Reimbursements</h1>
+          {/* Subtitle berbeda antara ADMIN dan EMPLOYEE */}
+          {!isAdmin && (
+            <p className="text-sm text-gray-500 mt-0.5">
+              Menampilkan reimbursement milik Anda
+            </p>
+          )}
           <p className="text-sm text-gray-500 mt-0.5">{totalItems} records found</p>
         </div>
         <button
@@ -454,17 +473,17 @@ const ReimbursementIndex = () => {
             type="text"
             placeholder="Search title, category, employee…"
             value={search}
-            onChange={e => { setSearch(e.target.value); }}
+            onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
           />
         </div>
-        
+
         <FilterDropdown
           activeFilters={activeFilters}
-          onChange={handleFilterChange}
+          onChange={setActiveFilters}
           counts={counts}
         />
-        
+
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 hidden sm:inline">Tampilkan</span>
           <select
@@ -506,7 +525,10 @@ const ReimbursementIndex = () => {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Title</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Category</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Employee</th>
+                {/* Kolom Employee hanya ditampilkan untuk ADMIN */}
+                {isAdmin && (
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Employee</th>
+                )}
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
@@ -514,7 +536,7 @@ const ReimbursementIndex = () => {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={isAdmin ? 7 : 6} className="px-4 py-12 text-center text-gray-400">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-2 border-gray-300 border-t-indigo-600 rounded-full animate-spin" />
                       <span>Loading...</span>
@@ -523,7 +545,7 @@ const ReimbursementIndex = () => {
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 7 : 6} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
                         <HiOutlineCurrencyDollar className="w-6 h-6 text-gray-400" />
@@ -533,7 +555,7 @@ const ReimbursementIndex = () => {
                     </div>
                   </td>
                 </tr>
-              ) : paginatedData.map(r => (
+              ) : paginatedData.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(r.expenseDate)}</td>
                   <td className="px-4 py-3">
@@ -547,27 +569,36 @@ const ReimbursementIndex = () => {
                   <td className="px-4 py-3 text-right font-medium text-gray-900 whitespace-nowrap">
                     {fmt(r.total)}
                   </td>
-                  <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                    {r.employeeName || "—"}
-                  </td>
+                  {/* Kolom Employee hanya untuk ADMIN */}
+                  {isAdmin && (
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                      {r.employeeName || "—"}
+                    </td>
+                  )}
                   <td className="px-4 py-3"><Badge status={r.status} /></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
                       <button
                         onClick={() => navigate(`/reimbursements/detail/${r.id}`)}
-                        className="p-1.5 hover:bg-indigo-50 rounded-lg transition-colors text-indigo-600" title="View">
+                        className="p-1.5 hover:bg-indigo-50 rounded-lg transition-colors text-indigo-600"
+                        title="View"
+                      >
                         <HiOutlineEye className="w-4 h-4" />
                       </button>
-                      {(r.status === "SUBMITTED") && (
+                      {r.status === "SUBMITTED" && (
                         <button
                           onClick={() => navigate(`/reimbursements/edit/${r.id}`)}
-                          className="p-1.5 hover:bg-amber-50 rounded-lg transition-colors text-amber-600" title="Edit">
+                          className="p-1.5 hover:bg-amber-50 rounded-lg transition-colors text-amber-600"
+                          title="Edit"
+                        >
                           <HiOutlinePencil className="w-4 h-4" />
                         </button>
                       )}
                       <button
                         onClick={() => handleDeleteClick(r)}
-                        className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-red-500" title="Delete">
+                        className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-red-500"
+                        title="Delete"
+                      >
                         <HiOutlineTrash className="w-4 h-4" />
                       </button>
                     </div>

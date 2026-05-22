@@ -1,14 +1,16 @@
 import axios from "axios";
 
-const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+
+const api = axios.create({
+  baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
 // ─── Inject token ke setiap request ──────────────────────────────────────────
-API.interceptors.request.use((config) => {
+api.interceptors.request.use((config) => {
   const token = localStorage.getItem("hr_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -17,7 +19,7 @@ API.interceptors.request.use((config) => {
 });
 
 // ─── Handle 401 ───────────────────────────────────────────────────────────────
-API.interceptors.response.use(
+api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
@@ -31,26 +33,13 @@ API.interceptors.response.use(
   }
 );
 
-export default API;
-
-// ================= DEPARTMENT =================
-
-export const createDepartmentAPI = (data) => {
-  return API.post("/departments", data);
+// Hapus awalan "/api" dari path karena sudah termasuk di dalam baseURL (VITE_API_URL)
+export const userApi = {
+  getAll: () => api.get("/users"),
+  getById: (id) => api.get(`/users/${id}`),
+  update: (id, data) => api.put(`/users/${id}`, data),
+  toggleActive: (id) => api.patch(`/users/${id}/toggle-active`),
+  delete: (id) => api.delete(`/users/${id}`),
 };
 
-export const getDepartmentsAPI = () => {
-  return API.get("/departments");
-};
-
-export const getDepartmentByIdAPI = (id) => {
-  return API.get(`/departments/${id}`);
-};
-
-export const updateDepartmentAPI = (id, data) => {
-  return API.put(`/departments/${id}`, data);
-};
-
-export const deleteDepartmentAPI = (id) => {
-  return API.delete(`/departments/${id}`);
-};
+export default api;

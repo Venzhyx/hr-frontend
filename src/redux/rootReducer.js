@@ -1,4 +1,5 @@
 import { combineReducers } from 'redux';
+import authReducer                 from './slices/authSlice';
 import employeeReducer             from './slices/employeeSlice';
 import departmentReducer           from './slices/departmentSlice';
 import companyReducer              from './slices/companySlice';
@@ -12,8 +13,10 @@ import approvalReducer             from './slices/approvalSlice';
 import attendanceCorrectionReducer from './slices/attendanceCorrectionSlice';
 import overtimeReducer             from './slices/overtimeSlice';
 import payrollReducer              from './slices/payrollSlice';
+import userReducer                 from './slices/userSlice';          // ← tambah
 
 const rootReducer = combineReducers({
+  auth:                 authReducer,
   employees:            employeeReducer,
   departments:          departmentReducer,
   companies:            companyReducer,
@@ -26,7 +29,8 @@ const rootReducer = combineReducers({
   reimbursements:       reimbursementReducer,
   approval:             approvalReducer,
   overtime:             overtimeReducer,
-  payroll:              payrollReducer,   // ← tambahan
+  payroll:              payrollReducer,
+  users:                userReducer,                                   // ← tambah
 });
 
 export default rootReducer;

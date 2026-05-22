@@ -432,12 +432,12 @@ const ApprovalTimeline = ({ approvals = [] }) => {
 };
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
-const DetailModal = ({ correction, onClose, onApprove, onReject, onEdit, onDelete, actionLoading, actionError, isAdmin, empPhoto }) => {
+const DetailModal = ({ correction, onClose, onApprove, onReject, onEdit, onDelete, actionLoading, actionError, empPhoto }) => {
   if (!correction) return null;
 
   const displayStatus = getDisplayStatus(correction);
   const sCfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG.SUBMITTED;
-  const canAct = isAdmin && (displayStatus === "SUBMITTED" || displayStatus === "PENDING");
+  const canAct = displayStatus === "SUBMITTED" || displayStatus === "PENDING";
   const canEdit = displayStatus === "SUBMITTED";
   const canDelete = displayStatus === "SUBMITTED";
   const initials = correction.employeeName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
@@ -606,7 +606,7 @@ const DetailModal = ({ correction, onClose, onApprove, onReject, onEdit, onDelet
                 disabled={actionLoading}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50"
               >
-                {actionLoading ? <Spinner /> : <HiOutlineCheck className="w-4 h-4" />}
+                {actionLoading ? <Spinner /> : <HiOutlineCheck className="w-4 h-4 font-bold" />}
                 Approve
               </button>
             </div>
@@ -833,30 +833,33 @@ const CorrectionModal = ({
   );
 };
 
-const EmptyState = ({ onNew, isAdmin }) => (
+const EmptyState = () => (
   <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
     <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4">
       <HiOutlinePencilAlt className="w-8 h-8 text-indigo-400" />
     </div>
     <h3 className="text-base font-semibold text-gray-800 mb-1">Belum ada koreksi kehadiran</h3>
     <p className="text-sm text-gray-400 max-w-xs">
-      {isAdmin ? "Belum ada pengajuan koreksi dari karyawan." : "Ajukan koreksi jika ada kesalahan data kehadiran kamu."}
+      Belum ada pengajuan koreksi dari karyawan.
     </p>
-    {!isAdmin && (
-      <button onClick={onNew}
-        className="mt-6 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors">
-        <HiOutlinePlus className="w-4 h-4" />
-        Buat Koreksi Pertama
-      </button>
-    )}
   </div>
 );
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) => {
+const AdminAttendanceCorrection = () => {
+  const role = "admin";
   const location = useLocation();
-  const isAdmin = role === "admin";
+
+  const loggedInUser = useMemo(() => {
+    try {
+      const userStr = localStorage.getItem("user") || localStorage.getItem("hr_user");
+      if (userStr) return JSON.parse(userStr);
+    } catch (e) {}
+    return null;
+  }, []);
+
+  const adminId = loggedInUser?.employeeId || loggedInUser?.id || null;
 
   const { employees, loadingEmployees, fetchEmployees } = useEmployee();
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -879,7 +882,7 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
     openCreateModal, closeCreateModal, openDetailModal, closeDetailModal,
     setFilterStatus, setFilterType, handleCreate, handleApprove, handleReject, handleRefresh,
     handleUpdate, handleDelete,
-  } = useAttendanceCorrection({ role, employeeId, adminId });
+  } = useAttendanceCorrection({ role, adminId });
 
   // ─── empMap: lookup employee by id for photo ──────────────────────────────
   const empMap = useMemo(() => {
@@ -891,16 +894,11 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
   useEffect(() => {
     fetchEmployees();
     handleRefresh();
-  }, [employeeId, role]);
+  }, [role]);
 
   useEffect(() => {
     fetchEmployees();
   }, []);
-
-  useEffect(() => {
-    if (!employeeId && role !== "admin") return;
-    handleRefresh();
-  }, [role, employeeId]);
 
   const hasProcessedRef = useRef(false);
 
@@ -1025,7 +1023,7 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Attendance Correction</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Attendance Correction (Admin)</h1>
           <p className="text-sm text-gray-500 mt-0.5">Kelola koreksi data kehadiran karyawan</p>
         </div>
         <div className="flex items-center gap-2">
@@ -1033,12 +1031,10 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
             className="p-2.5 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 transition-colors" title="Refresh">
             <HiOutlineRefresh className="w-4 h-4" />
           </button>
-          {!isAdmin && (
-            <button onClick={openCreateModal}
-              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
-              <HiOutlinePlus className="w-4 h-4" /> Buat Koreksi
-            </button>
-          )}
+          <button onClick={openCreateModal}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+            <HiOutlinePlus className="w-4 h-4" /> Buat Koreksi
+          </button>
         </div>
       </div>
 
@@ -1075,10 +1071,10 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            <Spinner cls="w-8 h-8 text-indigo-600" />
           </div>
-        ) : corrections.length === 0 ? (
-          <EmptyState onNew={openCreateModal} isAdmin={isAdmin} />
+        ) : filteredCorrections.length === 0 ? (
+          <EmptyState />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1091,72 +1087,58 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredCorrections.map((c) => {
-                  const displayStatus = getDisplayStatus(c);
-                  const canEditDelete = displayStatus === "SUBMITTED";
                   const emp = empMap[String(c.employeeId)];
                   const photo = getEmpPhoto(emp);
+                  const initials = c.employeeName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
 
                   return (
                     <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-gray-100">
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-amber-50">
                             {photo ? (
-                              <img
-                                src={photo}
-                                alt={c.employeeName}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                  e.currentTarget.nextSibling.style.display = "flex";
-                                }}
-                              />
-                            ) : null}
-                            <div
-                              className="w-full h-full bg-indigo-100 items-center justify-center"
-                              style={{ display: photo ? "none" : "flex" }}
-                            >
-                              <span className="text-xs font-bold text-indigo-600">{c.employeeName?.charAt(0)?.toUpperCase() ?? "?"}</span>
-                            </div>
+                              <img src={photo} alt={c.employeeName} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-amber-700 font-bold text-xs">
+                                {initials}
+                              </div>
+                            )}
                           </div>
                           <div>
-                            <p className="font-semibold text-gray-900 text-sm">{c.employeeName}</p>
-                            <p className="text-xs text-gray-400">#{c.employeeId}</p>
+                            <p className="font-semibold text-gray-800">{c.employeeName}</p>
+                            {c.employeeCode && <p className="text-xs text-gray-400 font-mono mt-0.5">{c.employeeCode}</p>}
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5 text-gray-700 text-sm">
-                          <HiOutlineCalendar className="w-3.5 h-3.5 text-gray-400" />{fmtDate(c.date)}
-                        </div>
+                      <td className="px-5 py-4 whitespace-nowrap font-medium text-gray-800">
+                        {fmtDate(c.date)}
                       </td>
-                      <td className="px-5 py-3.5">
-                        <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold">
-                          {TYPE_LABELS[c.type] ?? c.type}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          {TYPE_LABELS[c.type] || c.type}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-gray-600 text-sm">{fmtTime(c.newCheckIn)}</td>
-                      <td className="px-5 py-3.5 text-gray-600 text-sm">{fmtTime(c.newCheckOut)}</td>
-                      <td className="px-5 py-3.5"><StatusBadge correction={c} /></td>
-                      <td className="px-5 py-3.5 text-gray-400 text-xs">{fmt(c.createdAt)}</td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => openDetailModal(c)}
-                            className="p-1.5 hover:bg-indigo-50 rounded-lg transition-colors text-gray-400 hover:text-indigo-600" title="Lihat detail">
+                      <td className="px-5 py-4 whitespace-nowrap text-gray-700">
+                        {c.newCheckIn ? fmtDateTime(c.newCheckIn) : "—"}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap text-gray-700">
+                        {c.newCheckOut ? fmtDateTime(c.newCheckOut) : "—"}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <StatusBadge correction={c} />
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap text-gray-500 text-xs">
+                        {fmtDateTime(c.createdAt)}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openDetailModal(c)}
+                            className="text-gray-400 hover:text-indigo-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Detail"
+                          >
                             <HiOutlineEye className="w-4 h-4" />
                           </button>
-                          {canEditDelete && !isAdmin && (
-                            <>
-                              <button onClick={() => handleEdit(c)}
-                                className="p-1.5 hover:bg-amber-50 rounded-lg transition-colors text-gray-400 hover:text-amber-600" title="Edit">
-                                <HiOutlinePencilAlt className="w-4 h-4" />
-                              </button>
-                              <button onClick={() => handleDeleteClick(c)}
-                                className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-gray-400 hover:text-red-600" title="Hapus">
-                                <HiOutlineTrash className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -1168,7 +1150,7 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
         )}
       </div>
 
-      {(isModalOpen || autoOpenModal) && (
+      {isModalOpen && (
         <CorrectionModal
           mode={editMode ? "edit" : "create"}
           initialData={editingCorrection}
@@ -1184,11 +1166,11 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
           initialCheckIn={initialModalData.checkIn}
           initialCheckOut={initialModalData.checkOut}
           initialType={initialModalData.type}
-          onClearInitialData={() => setInitialModalData({ date: "", checkIn: "", checkOut: "", type: "BOTH" })}
+          onClearInitialData={handleCloseModal}
         />
       )}
 
-      {isDetailModalOpen && (
+      {isDetailModalOpen && selectedCorrection && (
         <DetailModal
           correction={selectedCorrection}
           onClose={closeDetailModal}
@@ -1198,23 +1180,21 @@ const AttendanceCorrection = ({ role = "admin", employeeId = null, adminId }) =>
           onDelete={handleDeleteClick}
           actionLoading={actionLoading}
           actionError={actionError}
-          isAdmin={isAdmin}
-          empPhoto={selectedCorrection ? getEmpPhoto(empMap[String(selectedCorrection.employeeId)]) : null}
+          empPhoto={getEmpPhoto(empMap[String(selectedCorrection.employeeId)])}
         />
       )}
 
-      {showDeleteModal && (
+      {showDeleteModal && deletingItem && (
         <DeleteModal
           item={deletingItem}
           onClose={handleCancelDelete}
           onConfirm={handleConfirmDelete}
-          isDeleting={deletingId === deletingItem?.id}
+          isDeleting={deletingId === deletingItem.id}
           deleteError={deleteError}
-          itemLabel="koreksi kehadiran"
         />
       )}
     </div>
   );
 };
 
-export default AttendanceCorrection;
+export default AdminAttendanceCorrection;   
